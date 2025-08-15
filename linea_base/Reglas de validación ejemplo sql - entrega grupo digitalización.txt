@@ -1,0 +1,302 @@
+# Ejemplos de consultas entregadas por los usuarios: 
+
+---codigo general verificacion
+
+
+with union_terrenos as (
+select * from turmeque.u_terreno ut 
+union all 
+select * from turmeque.r_terreno rt) 
+
+
+-- r 1
+select 'valdiacion predio' as tabla, 'regla: omisiones rurales ' as regla, count(*) as total
+ from turmeque.lc_predio lp 
+left join (select * from turmeque.u_terreno ut 
+union all 
+select * from turmeque.r_terreno rt )tu on tu.codigo = lp."numero predial" 
+where tu.id is null 
+and substring(lp."numero predial",22,1) not in ('5')  
+and substring(lp."numero predial",6,2)  in ('00')  
+
+union all 
+
+-- r2
+select 'valdiacion predio' as tabla, 'regla: omisiones urbanos ' as regla, count(*) as total
+ from turmeque.lc_predio lp 
+left join (select * from turmeque.u_terreno ut 
+union all 
+select * from turmeque.r_terreno rt )tu on tu.codigo = lp."numero predial" 
+where tu.id is null 
+and substring(lp."numero predial",22,1) not in ('5')  
+and substring(lp."numero predial",6,2)  in ('01')  
+
+union all 
+
+
+-- r3
+select 'valdiacion predio' as tabla, 'regla: comisiones urbanos ' as regla, count(*) as total
+ from union_terrenos ut
+left join turmeque.lc_predio lp on ut.codigo = lp."numero predial" 
+where lp.id is null  
+and substring(lp."numero predial",6,2)  in ('01')  
+
+union all 
+
+-- r4
+select 'valdiacion predio' as tabla, 'regla: comisiones rural ' as regla, count(*) as total
+ from union_terrenos ut
+left join turmeque.lc_predio lp on ut.codigo = lp."numero predial" 
+where lp.id is null  
+and substring(lp."numero predial",6,2)  in ('00')  
+
+
+union all 
+-- r5
+select 'valdiacion predio' as tabla, 
+'regla: predios urbanos sin destinacion economica ' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where lp.destino is null or lp.destino in ('','0') 
+and substring(lp."numero predial",6,2)  in ('01')  
+
+union all
+-- r6
+select 'valdiacion predio' as tabla, 
+'regla: predios rurales sin destinacion economica ' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where lp.destino is null or lp.destino in ('','0') 
+and substring(lp."numero predial",6,2)  in ('00')  
+
+
+union all 
+
+-- Regla 7
+select  'valdiacion predio' as tabla, 
+'regla: Predios destinacion de lote pero con area construida urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where lp.destino in ('R','S','T') and (lp."area construccion" is null or lp."area construccion" in ('0')) 
+and substring(lp."numero predial",6,2)  in ('01')  
+
+#######################    con área construída  debería ser el área > 0? 
+
+
+-- Regla 8
+select  'valdiacion predio' as tabla, 
+'regla: Predios destinacion de lote pero con area construida rural' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where lp.destino in ('R','S','T') and (lp."area construccion" is null or lp."area construccion" in ('0'))
+and substring(lp."numero predial",6,2)  in ('00')  
+
+#######################    con área construída  debería ser el área > 0? 
+
+
+
+
+
+
+####################### 
+-- Regla 9
+
+select  'valdiacion predio' as tabla, 
+'regla: Predios destinacion habitacional o comercial sin construccion rural' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where lp.destino in ('A','C') and (lp."area construccion" is null or lp."area construccion" in ('0'))
+and substring(lp."numero predial",6,2)  in ('00')  
+
+
+####################### 
+-- Regla 10
+select  'valdiacion predio' as tabla, 
+'regla: Predios destinacion habitacional o comercial sin construccion urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where lp.destino in ('A','C') and (lp."area construccion" is null or lp."area construccion" in ('0'))
+and substring(lp."numero predial",6,2)  in ('01')  
+
+
+####################### 
+
+-- Regla 11 
+select   'valdiacion predio' as tabla, 
+'regla: Predios mejoras sin area construida rural' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",22,1)in ('5') 
+and ("area construccion" in ('0') or "area construccion" is null ) 
+and substring(lp."numero predial",6,2)  in ('00')  
+
+####################### 
+
+-- REGLA 12 
+select   'valdiacion predio' as tabla, 
+'regla: Predios mejoras sin area construida urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",22,1)in ('5') 
+and ("area construccion" in ('0') or "area construccion" is null ) 
+and substring(lp."numero predial",6,2)  in ('01')  
+
+####################### 
+
+
+select   'valdiacion predio' as tabla, 
+'regla: Predios mejoras con area de terreno rural' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",22,1)in ('5') 
+and ("area terreno" <> '0' ) 
+and substring(lp."numero predial",6,2)  in ('00')  
+
+
+####################### 
+
+select   'valdiacion predio' as tabla, 
+'regla: Predios mejoras con area de terreno urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",22,1)in ('5') 
+and ("area terreno" <> '0' ) 
+and substring(lp."numero predial",6,2)  in ('01')  
+
+
+union all 
+
+select   'valdiacion predio' as tabla, 
+'regla: Predios sin area de terreno rural' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",22,1) not in ('5') 
+and (("area terreno" = '0' ) or "area terreno" is null )
+and substring(lp."numero predial",6,2)  in ('00')  
+
+union all 
+
+select   'valdiacion predio' as tabla, 
+'regla: Predios sin area de terreno urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",22,1) not in ('5') 
+and (("area terreno" = '0' ) or "area terreno" is null )
+and substring(lp."numero predial",6,2)  in ('01')  
+
+union all
+
+select  'valdiacion predio' as tabla, 
+'regla: Numeros prediales repetidos, rurales' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",6,2) in ('00')
+group by lp."numero predial" 
+having count(*)>1 
+
+union all
+
+select  'valdiacion predio' as tabla, 
+'regla: Numeros prediales repetidos, urbanos' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+where substring(lp."numero predial",6,2) in ('01')
+group by lp."numero predial" 
+having count(*)>1 
+
+union all 
+
+select 'valdiacion terreno' as tabla, 
+'regla: Cambios area predial geografica > 1 porciento rural' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+left join turmeque.r_terreno rt on lp."numero predial" = rt.codigo 
+where rt.id is not null and  abs(((lp."area terreno"-rt.shape_area)/lp."area terreno"))*100 > 1
+
+union all
+
+select 'valdiacion terreno' as tabla, 
+'regla: Cambios area predial geografica > 1 porciento urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+left join turmeque.u_terreno rt on lp."numero predial" = rt.codigo 
+where rt.id is not null and  abs(((lp."area terreno"-rt.shape_area)/lp."area terreno"))*100 > 1
+
+union all
+
+select 'valdiacion predio' as tabla, 
+'regla: Phs no construidos rurales' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+left join turmeque.lc_construccion lc on lp."numero predial" = lc."Numero Predial" 
+where lc.id is null and substring(lp."numero predial",22,1) in ('9') and
+substring(lp."numero predial",6,2) in ('00')
+
+
+union all
+
+select 'valdiacion predio' as tabla, 
+'regla: Phs no construidos urbano' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+left join turmeque.lc_construccion lc on lp."numero predial" = lc."Numero Predial" 
+where lc.id is null and substring(lp."numero predial",22,1) in ('9') and
+substring(lp."numero predial",6,2) in ('01')
+
+
+union all
+
+
+select 'valdiacion predio' as tabla, 
+'regla: construcciones sin puntaje urbano ' as regla, 
+count(*) as total from turmeque.lc_construccion lc 
+where (lc."Total Puntaje" is null or lc."Total Puntaje" in ('0')) 
+and substring(lc."Numero Predial" ,6,2) in ('01')
+
+
+union all
+
+
+select 'valdiacion predio' as tabla, 
+'regla: construcciones sin puntaje rural ' as regla, 
+count(*) as total from turmeque.lc_construccion lc 
+where (lc."Total Puntaje" is null or lc."Total Puntaje" in ('0')) 
+and substring(lc."Numero Predial" ,6,2) in ('00')
+
+
+union all 
+
+select 'valdiacion construccion' as tabla, 
+'regla: construcciones no convencionales con puntajes no multiplos de 5 rural' as regla, 
+count(*) as total from turmeque.lc_construccion lc 
+where lc."Tipo Construccion" in ('NO CONVENCIONAL') 
+ and not ("Total Puntaje" ::text LIKE '%0' OR lc."Total Puntaje"::TEXT LIKE '%5')
+ and substring(lc."Numero Predial" ,6,2) in ('00')
+ 
+ union all 
+
+select 'valdiacion construccion' as tabla, 
+'regla: construcciones no convencionales con puntajes no multiplos de 5 urbano' as regla, 
+count(*) as total from turmeque.lc_construccion lc 
+where lc."Tipo Construccion" in ('NO CONVENCIONAL') 
+ and not ("Total Puntaje" ::text LIKE '%0' OR lc."Total Puntaje"::TEXT LIKE '%5')
+ and substring(lc."Numero Predial" ,6,2) in ('01')
+ 
+ 
+ union all 
+ 
+ select 'valdiacion construccion' as tabla, 
+'regla: codificacion de usos de construccion en PH urbano' as regla, 
+count(*) as total
+ from turmeque.lc_construccion lc 
+ where lc."Uso Nombre" like ('%PH%')
+  and substring(lc."Numero Predial" ,6,2) in ('01')
+ 
+  
+ union all 
+ 
+ select 'valdiacion construccion' as tabla, 
+'regla: codificacion de usos de construccion en PH rural' as regla, 
+count(*) as total
+ from turmeque.lc_construccion lc 
+ where lc."Uso Nombre" like ('%PH%')
+  and substring(lc."Numero Predial" ,6,2) in ('00')
+ 
+ union all 
+  
+ 
+select 'valdiacion predio' as tabla, 
+'regla: mejoras sin terreno rural ' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+left join turmeque.lc_predio lp2 on substring(lp."numero predial",1,21)||'000000000' = lp2."numero predial" 
+where   substring(lp."numero predial" ,6,2) in ('00') and substring(lp."numero predial",22,1) in ('5') and lp2.id is null
+
+union all 
+
+select 'valdiacion predio' as tabla, 
+'regla: mejoras sin terreno urbano ' as regla, 
+count(*) as total from turmeque.lc_predio lp 
+left join turmeque.lc_predio lp2 on substring(lp."numero predial",1,21)||'000000000' = lp2."numero predial" 
+where   substring(lp."numero predial" ,6,2) in ('01') and substring(lp."numero predial",22,1) in ('5') and lp2.id is null

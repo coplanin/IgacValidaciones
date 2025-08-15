@@ -1,0 +1,26 @@
+Predio:
+- Predios sin destinación económica.
+- Predios con destino "R" "S" "T" con área construida
+- Predios con destino habitacionales o comerciales sin área construida, 
+- Predios con condición de mejora sin matriz condición NPH.
+- Predios con condición de mejora sin área construida.
+- Predios con condición de mejora con área de terreno en la tabla predio
+- Predios sin área de terreno (tabla predio)
+- Números prediales repetidos
+- Área geográfica vs área alfanumérica mayor al margen de tolerancia de acuerdo a la resolución 746 de 2024.
+- Omisión de la tabla predio que no tienen ninguna geometría asociada.
+- Comisiones predios con geometría, pero sin predio en la alfanumérica.
+
+Construcción:
+- Construcciones sin puntaje 
+- Construcciones anexos, en las que el puntaje de construcción este fuera de los dominios.
+- Codificación de usos de construcción en PH.
+- Predios en condición 9 que no tengan una construcción asociada en la tabla alfanumérica.
+- Construcción si predio asociado en la tabla alfanumérica.
+- Omisión de construcciones que no tengan ninguna geometría asociada.
+- Predios fuera del perímetro urbano.
+
+- Totalidad de objetos por entidad de la base geográfica.
+
+
+
