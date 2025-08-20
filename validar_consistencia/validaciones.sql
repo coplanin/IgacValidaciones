@@ -1048,6 +1048,248 @@ ORDER BY e.id_operacion, e.objectid;
 
 
 
+-- Regla 677: Validación de NPN para PH_Unidad_Predial
+
+DROP TABLE IF EXISTS reglas.regla_677;
+
+CREATE TABLE reglas.regla_677 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                AS id_operacion,
+    p.numero_predial_nacional            AS npn,
+    lower(btrim(p.condicion_predio))     AS cp,
+    -- Segmentos del NPN (1-indexado)
+    substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
+    substring(p.numero_predial_nacional FROM 23 FOR 2) AS s23_24,
+    substring(p.numero_predial_nacional FROM 25 FOR 2) AS s25_26,
+    substring(p.numero_predial_nacional FROM 27 FOR 4) AS s27_30,
+    -- Formato general (30 dígitos)
+    (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN
+    ('ph.unidad_predial','ph_unidad_predial','ph unidad predial')
+),
+viol AS (
+  SELECT
+    b.*,
+    -- Chequeos de regla
+    (b.ok_formato AND b.s22     = '9')       AS ok_22,
+    (b.ok_formato AND b.s23_24 <> '00')      AS ok_23_24,
+    (b.ok_formato AND b.s25_26 <> '00')      AS ok_25_26,
+    (b.ok_formato AND b.s27_30 <> '0000')    AS ok_27_30,
+    -- Motivo detallado (concatena todas las fallas)
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN b.ok_formato AND NOT (b.s22 = '9') THEN 'pos22≠9' END,
+      CASE WHEN b.ok_formato AND NOT (b.s23_24 <> '00') THEN 'pos23-24="00"' END,
+      CASE WHEN b.ok_formato AND NOT (b.s25_26 <> '00') THEN 'pos25-26="00"' END,
+      CASE WHEN b.ok_formato AND NOT (b.s27_30 <> '0000') THEN 'pos27-30="0000"' END
+    )) AS motivo
+  FROM base b
+)
+SELECT
+  '677'::text                    AS regla,
+  'ILC_Predio'::text             AS objeto,
+  'preprod.ilc_predio'::text     AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  ('INCUMPLE: PH_Unidad_Predial → '||v.motivo)::text AS descripcion,
+  (
+    's22='||COALESCE(v.s22,'(null)')||
+    ', s23_24='||COALESCE(v.s23_24,'(null)')||
+    ', s25_26='||COALESCE(v.s25_26,'(null)')||
+    ', s27_30='||COALESCE(v.s27_30,'(null)')
+  )::text                         AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+WHERE
+     NOT v.ok_formato
+  OR NOT v.ok_22
+  OR NOT v.ok_23_24
+  OR NOT v.ok_25_26
+  OR NOT v.ok_27_30
+ORDER BY v.id_operacion, v.npn;
+
+-- Regla 676: Validación de NPN para PH.Matriz
+
+
+DROP TABLE IF EXISTS reglas.regla_676;
+
+CREATE TABLE reglas.regla_676 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                AS id_operacion,
+    p.numero_predial_nacional            AS npn,
+    lower(btrim(p.condicion_predio))     AS cp,
+    -- Segmentos del NPN (1-indexado)
+    substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
+    substring(p.numero_predial_nacional FROM 23 FOR 8) AS s23_30,
+    (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN
+    ('ph.matriz','ph_matriz','ph matriz')
+),
+viol AS (
+  SELECT
+    b.*,
+    (b.ok_formato AND b.s22 = '9')            AS ok_22,
+    (b.ok_formato AND b.s23_30 = '00000000')  AS ok_23_30,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN b.ok_formato AND NOT (b.s22 = '9') THEN 'pos22≠9' END,
+      CASE WHEN b.ok_formato AND NOT (b.s23_30 = '00000000') THEN 'pos23-30≠00000000' END
+    )) AS motivo
+  FROM base b
+)
+SELECT
+  '676'::text                    AS regla,
+  'ILC_Predio'::text             AS objeto,
+  'preprod.ilc_predio'::text     AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  ('INCUMPLE: PH.Matriz → '||v.motivo)::text AS descripcion,
+  (
+    's22='||COALESCE(v.s22,'(null)')||
+    ', s23_30='||COALESCE(v.s23_30,'(null)')
+  )::text                         AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+WHERE
+     NOT v.ok_formato
+  OR NOT v.ok_22
+  OR NOT v.ok_23_30
+ORDER BY v.id_operacion, v.npn;
+
+-- Regla 678: NPN para Parque_Cementerio.Unidad_Predial
+
+
+DROP TABLE IF EXISTS reglas.regla_678;
+
+CREATE TABLE reglas.regla_678 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                AS id_operacion,
+    p.numero_predial_nacional            AS npn,
+    lower(btrim(p.condicion_predio))     AS cp,
+    -- segmentos del NPN (1-indexado)
+    substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
+    substring(p.numero_predial_nacional FROM 23 FOR 2) AS s23_24,
+    substring(p.numero_predial_nacional FROM 25 FOR 2) AS s25_26,
+    substring(p.numero_predial_nacional FROM 27 FOR 4) AS s27_30,
+    -- formato general (30 dígitos)
+    (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN
+    ('parque_cementerio.unidad_predial','parque_cementerio_unidad_predial')
+),
+viol AS (
+  SELECT
+    b.*,
+    -- checks por regla
+    (b.ok_formato AND b.s22     = '7')       AS ok_22,
+    (b.ok_formato AND b.s23_24 <> '00')      AS ok_23_24,
+    (b.ok_formato AND b.s25_26 <> '00')      AS ok_25_26,
+    (b.ok_formato AND b.s27_30 <> '0000')    AS ok_27_30,
+    -- motivo detallado
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN b.ok_formato AND b.s22 <> '7'      THEN 'pos22≠7' END,
+      CASE WHEN b.ok_formato AND b.s23_24 = '00'   THEN 'pos23-24="00"' END,
+      CASE WHEN b.ok_formato AND b.s25_26 = '00'   THEN 'pos25-26="00"' END,
+      CASE WHEN b.ok_formato AND b.s27_30 = '0000' THEN 'pos27-30="0000"' END
+    )) AS motivo
+  FROM base b
+)
+SELECT
+  '678'::text                    AS regla,
+  'ILC_Predio'::text             AS objeto,
+  'preprod.ilc_predio'::text     AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  ('INCUMPLE: Parque_Cementerio.Unidad_Predial → '||v.motivo)::text AS descripcion,
+  (
+    's22='||COALESCE(v.s22,'(null)')||
+    ', s23_24='||COALESCE(v.s23_24,'(null)')||
+    ', s25_26='||COALESCE(v.s25_26,'(null)')||
+    ', s27_30='||COALESCE(v.s27_30,'(null)')
+  )::text                         AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+WHERE
+     NOT v.ok_formato
+  OR NOT v.ok_22
+  OR NOT v.ok_23_24
+  OR NOT v.ok_25_26
+  OR NOT v.ok_27_30
+ORDER BY v.id_operacion, v.npn;
+
+-- Regla 679: NPN para Condominio.Matriz → posiciones 22–30 = "800000000"
+
+DROP TABLE IF EXISTS reglas.regla_679;
+
+CREATE TABLE reglas.regla_679 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                    AS id_operacion,
+    p.numero_predial_nacional                AS npn,
+    lower(btrim(p.condicion_predio))         AS cp,
+    substring(p.numero_predial_nacional FROM 22 FOR 9) AS s22_30,
+    substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
+    substring(p.numero_predial_nacional FROM 23 FOR 8) AS s23_30,
+    (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN ('condominio.matriz','condominio_matriz','condominio matriz')
+),
+viol AS (
+  SELECT
+    b.*,
+    (b.ok_formato AND b.s22_30 = '800000000') AS ok_bloque,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN b.ok_formato AND b.s22_30 <> '800000000' THEN 'pos22-30≠800000000' END
+    )) AS motivo
+  FROM base b
+)
+SELECT
+  '679'::text                    AS regla,
+  'ILC_Predio'::text             AS objeto,
+  'preprod.ilc_predio'::text     AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  ('INCUMPLE: Condominio.Matriz → '||v.motivo)::text AS descripcion,
+  (
+    's22='||COALESCE(v.s22,'(null)')||
+    ', s23_30='||COALESCE(v.s23_30,'(null)')||
+    ', s22_30='||COALESCE(v.s22_30,'(null)')
+  )::text                       AS valor,
+  FALSE                         AS cumple,
+  NOW()                         AS created_at,
+  NOW()                         AS updated_at
+FROM viol v
+WHERE NOT v.ok_formato OR NOT v.ok_bloque
+ORDER BY v.id_operacion, v.npn;
 
 
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
