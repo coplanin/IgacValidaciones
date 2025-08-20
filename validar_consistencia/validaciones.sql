@@ -1341,6 +1341,577 @@ FROM viol v
 WHERE NOT v.ok_formato OR NOT v.ok_bloque
 ORDER BY v.id_operacion, v.npn;
 
+-- Regla 729 (ajustada): Fecha_Inicio_Tenencia según d6-7 del NPN
+-- Dominio + Matrícula vacía ('' o solo espacios) + d6-7='00'  =>  1936-12-04
+-- Dominio + Matrícula vacía ('' o solo espacios) + d6-7 in 01..99 => 1959-12-31
+
+DROP TABLE IF EXISTS reglas.regla_729;
+
+CREATE TABLE reglas.regla_729 AS
+WITH predio AS (
+  SELECT
+    p.objectid                          AS predio_oid,
+    p.globalid                          AS predio_gid,
+    btrim(p.id_operacion)               AS id_operacion_predio,
+    p.numero_predial_nacional           AS npn,
+    substring(p.numero_predial_nacional FROM 6 FOR 2) AS d67,
+    p.matricula_inmobiliaria
+  FROM preprod.ilc_predio p
+),
+derecho AS (
+  SELECT
+    btrim(d.id_operacion_predio)        AS id_operacion_predio,
+    d.objectid                          AS der_oid,
+    d.globalid                          AS der_gid,
+    d.tipo,
+    (d.fecha_inicio_tenencia)::date     AS fecha_inicio_tenencia
+  FROM preprod.ilc_derecho d
+),
+base AS (
+  SELECT
+    pr.predio_oid,
+    pr.predio_gid,
+    pr.id_operacion_predio,
+    pr.npn,
+    pr.d67,
+    pr.matricula_inmobiliaria,
+    dr.der_oid,
+    dr.der_gid,
+    dr.tipo,
+    dr.fecha_inicio_tenencia
+  FROM predio pr
+  JOIN derecho dr
+    ON dr.id_operacion_predio = pr.id_operacion_predio
+),
+filtro AS (
+  SELECT
+    b.*,
+    -- Dominio
+    (lower(btrim(b.tipo)) = 'dominio') AS es_dominio,
+    -- Matrícula "vacía": NULL o solo espacios/cadena vacía
+    (b.matricula_inmobiliaria IS NULL OR btrim(b.matricula_inmobiliaria) = '') AS mi_vacia,
+    -- Clasificación d6-7
+    (b.d67 = '00')                                        AS es_rural_00,
+    (b.d67 ~ '^(0[1-9]|[1-9][0-9])$')                     AS es_urb_01_99,
+    -- Fecha esperada
+    CASE
+      WHEN b.d67 = '00' THEN DATE '1936-12-04'
+      WHEN b.d67 ~ '^(0[1-9]|[1-9][0-9])$' THEN DATE '1959-12-31'
+      ELSE NULL
+    END AS fecha_esperada
+  FROM base b
+),
+viol AS (
+  SELECT
+    f.*,
+    -- Aplica regla
+    (f.es_dominio AND f.mi_vacia AND f.fecha_esperada IS NOT NULL) AS aplica_regla,
+    -- Incumple si fecha es NULL o distinta a la esperada
+    (f.es_dominio AND f.mi_vacia AND f.fecha_esperada IS NOT NULL
+      AND (f.fecha_inicio_tenencia IS NULL OR f.fecha_inicio_tenencia <> f.fecha_esperada)
+    ) AS incumple,
+    CASE
+      WHEN NOT (f.es_dominio AND f.mi_vacia AND f.fecha_esperada IS NOT NULL) THEN NULL
+      WHEN f.fecha_inicio_tenencia IS NULL THEN
+        'INCUMPLE: Fecha_Inicio_Tenencia es NULL; se esperaba '||to_char(f.fecha_esperada,'YYYY-MM-DD')
+      WHEN f.fecha_inicio_tenencia <> f.fecha_esperada THEN
+        'INCUMPLE: Fecha_Inicio_Tenencia='||to_char(f.fecha_inicio_tenencia,'YYYY-MM-DD')||
+        '; se esperaba '||to_char(f.fecha_esperada,'YYYY-MM-DD')
+    END AS motivo
+  FROM filtro f
+)
+SELECT
+  '729'::text                           AS regla,
+  'ILC_Derecho'::text                   AS objeto,
+  'preprod.ilc_derecho'::text           AS tabla,
+  v.predio_oid                          AS objectid,
+  v.predio_gid                          AS globalid,
+  v.id_operacion_predio                 AS id_operacion,
+  v.npn,
+  COALESCE(v.motivo,'')::text           AS descripcion,
+  (
+    'tipo='||COALESCE(v.tipo,'(null)')||
+    ', d67='||COALESCE(v.d67,'(null)')||
+    ', fecha_actual='||COALESCE(to_char(v.fecha_inicio_tenencia,'YYYY-MM-DD'),'(null)')||
+    ', fecha_esperada='||COALESCE(to_char(v.fecha_esperada,'YYYY-MM-DD'),'(null)')||
+    ', matricula_vacia='||(CASE WHEN (v.matricula_inmobiliaria IS NULL OR btrim(v.matricula_inmobiliaria)='') THEN 'true' ELSE 'false' END)
+  )::text                                AS valor,
+  FALSE                                   AS cumple,
+  NOW()                                   AS created_at,
+  NOW()                                   AS updated_at
+FROM viol v
+WHERE v.aplica_regla AND v.incumple
+ORDER BY v.id_operacion_predio, v.npn;
+
+--regla 738
+
+DROP TABLE IF EXISTS reglas.regla_738;
+
+CREATE TABLE reglas.regla_738 AS
+WITH predio AS (
+  SELECT
+    p.objectid                AS predio_oid,
+    p.globalid                AS predio_gid,
+    btrim(p.id_operacion)     AS id_operacion_predio,
+    p.numero_predial_nacional AS npn,
+    p.condicion_predio
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN (
+    'ph_matriz',
+    'condominio_matriz',
+    'cementerio_matriz'
+  )
+),
+interesado AS (
+  SELECT
+    i.objectid               AS int_oid,
+    i.globalid               AS int_gid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    i.tipo                   AS tipo_interesado
+  FROM preprod.ilc_interesado i
+),
+base AS (
+  SELECT
+    pr.predio_oid,
+    pr.predio_gid,
+    pr.id_operacion_predio,
+    pr.npn,
+    pr.condicion_predio,
+    it.int_oid,
+    it.int_gid,
+    it.tipo_interesado
+  FROM predio pr
+  LEFT JOIN interesado it
+    ON pr.id_operacion_predio = it.id_operacion_predio
+)
+SELECT
+  'Predio_Matriz_Persona_Juridica'::text AS regla,
+  'ILC_Predio / ILC_Interesado'::text    AS objeto,
+  'preprod.ilc_predio'::text             AS tabla,
+  b.predio_oid                           AS objectid,
+  b.predio_gid                           AS globalid,
+  b.id_operacion_predio                  AS id_operacion,
+  b.npn,
+  'INCUMPLE: Predio con condición '||b.condicion_predio||
+  ' tiene interesado de tipo '||COALESCE(b.tipo_interesado,'(null)')||
+  ' pero se requiere Persona_Juridica'   AS descripcion,
+  (
+    'condicion='||COALESCE(b.condicion_predio,'(null)')||
+    ', tipo_interesado='||COALESCE(b.tipo_interesado,'(null)')
+  )::text                                AS valor,
+  FALSE                                   AS cumple,
+  NOW()                                   AS created_at,
+  NOW()                                   AS updated_at
+FROM base b
+WHERE b.tipo_interesado IS DISTINCT FROM 'Persona_Juridica'
+ORDER BY b.npn;
+
+-- Regla 739: Vía / Bien_Uso_Publico ⇒ Tipo de predio y Derecho Dominio
+
+DROP TABLE IF EXISTS reglas.regla_739;
+
+CREATE TABLE reglas.regla_739 AS
+WITH pr AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                      AS id_operacion,
+    p.numero_predial_nacional                  AS npn,
+    lower(btrim(p.condicion_predio))           AS cp,
+    btrim(p.tipo)                               AS tipo_predio
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN ('via','vía','bien_uso_publico','bien_uso_público')
+),
+der AS (
+  SELECT
+    btrim(d.id_operacion_predio) AS id_operacion,
+    COUNT(*)                     AS n_derechos,
+    SUM( CASE WHEN lower(btrim(d.tipo)) = 'dominio' THEN 1 ELSE 0 END ) AS n_dominio
+  FROM preprod.ilc_derecho d
+  GROUP BY 1
+),
+eval AS (
+  SELECT
+    pr.objectid,
+    pr.globalid,
+    pr.id_operacion,
+    pr.npn,
+    pr.cp,
+    pr.tipo_predio,
+    COALESCE(der.n_derechos,0) AS n_derechos,
+    COALESCE(der.n_dominio,0)  AS n_dominio,
+    -- checks
+    (lower(COALESCE(pr.tipo_predio,'')) = 'predio.publico.uso_publico') AS ok_tipo_predio,
+    (COALESCE(der.n_dominio,0) > 0)                                     AS ok_dominio
+  FROM pr
+  LEFT JOIN der ON der.id_operacion = pr.id_operacion
+),
+viol AS (
+  SELECT
+    e.*,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT e.ok_tipo_predio THEN 'Tipo de predio debe ser "Predio.Publico.Uso_Publico"' END,
+      CASE WHEN NOT e.ok_dominio     THEN 'Debe existir al menos un Derecho con tipo "Dominio"' END
+    )) AS motivo
+  FROM eval e
+  WHERE (NOT e.ok_tipo_predio) OR (NOT e.ok_dominio)
+)
+SELECT
+  '739'::text                   AS regla,
+  'ILC_Predio / ILC_Derecho'::text AS objeto,
+  'preprod.ilc_predio'::text    AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  ('INCUMPLE: '||v.motivo)::text AS descripcion,
+  (
+    'condicion='||v.cp||
+    ', tipo_predio='||COALESCE(v.tipo_predio,'(null)')||
+    ', n_derechos='||v.n_derechos||
+    ', n_dominio='||v.n_dominio
+  )::text                       AS valor,
+  FALSE                         AS cumple,
+  NOW()                         AS created_at,
+  NOW()                         AS updated_at
+FROM viol v
+ORDER BY v.id_operacion, v.npn;
+
+
+--740
+-- ====================================================================================
+-- VALIDACIÓN: Fecha Inicio Tenencia vs Fecha Documento Fuente
+-- ====================================================================================
+
+DROP TABLE IF EXISTS reglas.regla_740;
+
+CREATE TABLE reglas.regla_740 AS
+WITH base AS (
+  SELECT 
+    d.objectid          AS derecho_oid,
+    d.globalid          AS derecho_gid,
+    btrim(d.id_operacion_predio) AS id_operacion,
+    lower(btrim(d.tipo)) AS tipo_derecho,
+    d.fecha_inicio_tenencia::date AS fecha_tenencia,
+    
+    p.objectid          AS predio_oid,
+    p.globalid          AS predio_gid,
+    p.numero_predial_nacional AS npn,
+    NULLIF(btrim(p.matricula_inmobiliaria), '') AS matricula_inmobiliaria,
+    
+    f.objectid          AS fuente_oid,
+    f.globalid          AS fuente_gid,
+    f.fecha_documento_fuente::date AS fecha_fuente
+
+  FROM preprod.ilc_derecho d
+  JOIN preprod.ilc_predio p 
+    ON btrim(p.id_operacion) = btrim(d.id_operacion_predio)
+  LEFT JOIN preprod.ilc_fuenteadministrativa f 
+    ON f.id_operacion_predio = d.id_operacion_predio
+  WHERE lower(btrim(d.tipo)) = 'dominio'
+    AND NULLIF(btrim(p.matricula_inmobiliaria), '') IS NOT NULL
+    AND NULLIF(btrim(p.matricula_inmobiliaria), '') <> '0'
+)
+SELECT
+  '740'::text                   AS regla,
+  'ILC_Derecho / ILC_FuenteAdministrativa'::text AS objeto,
+  'preprod.ilc_derecho'::text   AS tabla,
+  b.derecho_oid                 AS objectid,
+  b.derecho_gid                 AS globalid,
+  b.id_operacion,
+  b.npn,
+  CASE 
+    WHEN b.fecha_tenencia IS NULL OR b.fecha_fuente IS NULL
+      THEN 'INCUMPLE: Faltan fechas para comparar (tenencia o documento fuente nulos)'
+    WHEN b.fecha_tenencia < b.fecha_fuente
+      THEN 'INCUMPLE: Fecha de inicio de tenencia ('||b.fecha_tenencia||') es menor a la fecha del documento fuente ('||b.fecha_fuente||')'
+    ELSE 'OK'
+  END AS descripcion,
+  (
+    'matricula='||COALESCE(b.matricula_inmobiliaria,'(null)')||
+    ', fecha_tenencia='||COALESCE(b.fecha_tenencia::text,'(null)')||
+    ', fecha_fuente='||COALESCE(b.fecha_fuente::text,'(null)')
+  )::text AS valor,
+  (b.fecha_tenencia IS NOT NULL AND b.fecha_fuente IS NOT NULL AND b.fecha_tenencia >= b.fecha_fuente) AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM base b
+ORDER BY descripcion, b.npn;
+
+DROP TABLE IF EXISTS reglas.regla_741;
+
+CREATE TABLE reglas.regla_741 AS
+WITH predios AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion) AS id_operacion,
+    p.matricula_inmobiliaria AS mi_raw,
+    CASE WHEN NULLIF(btrim(p.matricula_inmobiliaria),'') IS NOT NULL THEN TRUE ELSE FALSE END AS mi_diligenciada
+  FROM preprod.ilc_predio p
+),
+predios_mi AS (
+  SELECT * FROM predios WHERE mi_diligenciada
+),
+fuentes AS (
+  SELECT
+    f.id_operacion_predio,
+    f.fecha_documento_fuente::date AS f_doc,
+    NULLIF(btrim(f.tipo),'')   AS tipo,
+    NULLIF(btrim(f.numero_fuente),'') AS numero_fuente,
+    NULLIF(btrim(f.ente_emisor),'')   AS ente_emisor
+  FROM preprod.ilc_fuenteadministrativa f
+),
+visita AS (
+  SELECT
+    d.id_operacion_predio,
+    d.fecha_visita_predial::date AS f_visita
+  FROM preprod.datosadicionaleslevantamientocatastral d
+),
+join_fuentes AS (
+  SELECT
+    pm.objectid, pm.globalid, pm.id_operacion, pm.mi_raw,
+    f.f_doc, f.tipo, f.numero_fuente, f.ente_emisor,
+    v.f_visita,
+    CASE
+      WHEN f.f_doc IS NOT NULL
+       AND f.tipo IS NOT NULL
+       AND f.numero_fuente IS NOT NULL
+       AND f.ente_emisor IS NOT NULL
+      THEN TRUE ELSE FALSE
+    END AS completa
+  FROM predios_mi pm
+  LEFT JOIN fuentes f
+    ON btrim(f.id_operacion_predio) = pm.id_operacion
+  LEFT JOIN visita v
+    ON v.id_operacion_predio = pm.id_operacion
+),
+agg AS (
+  SELECT
+    j.objectid, j.globalid, j.id_operacion, j.mi_raw,
+    MAX(j.f_visita) AS f_visita,
+    COUNT(*) FILTER (WHERE completa) AS n_completas,
+    COUNT(*) FILTER (WHERE completa AND (j.f_doc > j.f_visita)) AS n_fuentes_posteriores
+  FROM join_fuentes j
+  GROUP BY j.objectid, j.globalid, j.id_operacion, j.mi_raw
+)
+SELECT
+  '741'::text AS regla,
+  'ILC_Predio'::text AS objeto,
+  'preprod.ilc_predio'::text AS tabla,
+  a.objectid,
+  a.globalid,
+  a.id_operacion,
+  ('INCUMPLE: MI diligenciada pero no cumple con fuentes completas y válidas.')::text AS descripcion,
+  (
+    'mi='||COALESCE(a.mi_raw,'(null)')
+    ||', n_completas='||a.n_completas
+    ||', n_fuentes_posteriores='||a.n_fuentes_posteriores
+    ||', visita='||COALESCE(a.f_visita::text,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM agg a
+WHERE a.n_completas = 0       -- no tiene ninguna fuente completa
+   OR a.n_fuentes_posteriores > 0;  -- o la fecha_doc > fecha_visita
+
+--742
+DROP TABLE IF EXISTS reglas.regla_742;
+
+CREATE TABLE reglas.regla_742 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio)        AS id_operacion_predio,
+    lower(btrim(i.tipo))                AS tipo_norm,
+    upper(btrim(i.tipo_documento))      AS tipo_doc_norm,
+    i.tipo,
+    i.tipo_documento
+  FROM preprod.ilc_interesado i
+),
+viol AS (
+  SELECT
+    b.*
+  FROM base b
+  WHERE (b.tipo_norm IN ('persona_jurídica','persona_juridica'))
+    AND (b.tipo_doc_norm NOT IN ('NIT','SECUENCIAL') OR b.tipo_doc_norm IS NULL)
+)
+SELECT
+  '742'::text                            AS regla,
+  'ILC_Interesado'::text                 AS objeto,
+  'preprod.ilc_interesado'::text         AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio                  AS id_operacion,
+  NULL::varchar(30)                      AS npn,  -- aquí no aplica
+  'INCUMPLE: Persona_Jurídica debe tener Tipo_Documento ∈ {NIT, Secuencial}'::text AS descripcion,
+  COALESCE(v.tipo_documento,'(null)')::text AS valor,  -- solo muestra el valor malo
+  FALSE                                   AS cumple,
+  NOW()                                   AS created_at,
+  NOW()                                   AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--743
+DROP TABLE IF EXISTS reglas.regla_743;
+
+CREATE TABLE reglas.regla_743 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio)        AS id_operacion_predio,
+    lower(btrim(i.tipo))                AS tipo_norm,
+    upper(btrim(i.tipo_documento))      AS tipo_doc_norm,
+    i.tipo_documento
+  FROM preprod.ilc_interesado i
+)
+SELECT
+  '743'::text                    AS regla,
+  'ILC_Interesado'::text         AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion_predio          AS id_operacion,
+  NULL::varchar(30)              AS npn,  -- no aplica
+  'INCUMPLE: Persona_Natural no puede tener Tipo_Documento = NIT'::text AS descripcion,
+  COALESCE(b.tipo_documento,'(null)')::text AS valor,  -- el valor malo (NIT)
+  FALSE                         AS cumple,
+  NOW()                         AS created_at,
+  NOW()                         AS updated_at
+FROM base b
+WHERE b.tipo_norm IN ('persona_natural','persona natural')
+  AND b.tipo_doc_norm = 'NIT'
+ORDER BY b.id_operacion_predio, b.objectid;
+
+
+--744
+DROP TABLE IF EXISTS reglas.regla_744;
+
+CREATE TABLE reglas.regla_744 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio)   AS id_operacion_predio,
+    upper(btrim(i.tipo_documento)) AS tipo_doc_norm,
+    btrim(i.documento_identidad)   AS doc_id
+  FROM preprod.ilc_interesado i
+  WHERE upper(btrim(i.tipo_documento)) <> 'NIT'
+),
+valid AS (
+  SELECT
+    b.*,
+    -- ¿solo dígitos?
+    (b.doc_id ~ '^[0-9]+$') AS solo_numeros,
+    -- > 0 (solo si es numérico)
+    CASE WHEN b.doc_id ~ '^[0-9]+$'
+         THEN (b.doc_id)::numeric > 0
+         ELSE FALSE
+    END AS mayor_cero
+  FROM base b
+),
+asc_check AS (
+  SELECT
+    v.*,
+    -- ¿el documento COMPLETO es una secuencia ascendente (cada dígito = anterior+1)?
+    CASE
+      WHEN v.solo_numeros = FALSE OR length(v.doc_id) < 2 THEN FALSE
+      ELSE NOT EXISTS (
+        SELECT 1
+        FROM generate_series(1, length(v.doc_id)-1) AS g(i)
+        WHERE (substr(v.doc_id, g.i+1, 1)::int - substr(v.doc_id, g.i, 1)::int) <> 1
+      )
+    END AS consecutivo_full_asc
+  FROM valid v
+),
+viol AS (
+  SELECT
+    a.*,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN a.solo_numeros = FALSE THEN 'Documento_identidad contiene letras/símbolos' END,
+      CASE WHEN a.mayor_cero   = FALSE THEN 'Documento_identidad <= 0 o vacío' END,
+      CASE WHEN a.consecutivo_full_asc THEN 'Documento_identidad es secuencia ascendente completa' END
+    )) AS motivo
+  FROM asc_check a
+  WHERE a.solo_numeros = FALSE
+     OR a.mayor_cero   = FALSE
+     OR a.consecutivo_full_asc = TRUE
+)
+SELECT
+  '744'::text                     AS regla,
+  'ILC_Interesado'::text          AS objeto,
+  'preprod.ilc_interesado'::text  AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio           AS id_operacion,
+  NULL::varchar(30)               AS npn, -- no aplica
+  ('INCUMPLE: Tipo_Documento<>"NIT" → Documento_identidad debe ser numérico (>0) y NO ser secuencia ascendente completa. '||v.motivo)::text AS descripcion,
+  v.doc_id::text                  AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--245
+DROP TABLE IF EXISTS reglas.regla_745;
+
+CREATE TABLE reglas.regla_745 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio)   AS id_operacion_predio,
+    upper(btrim(i.tipo_documento)) AS tipo_doc_norm,
+    btrim(i.documento_identidad)   AS doc_id
+  FROM preprod.ilc_interesado i
+  WHERE upper(btrim(i.tipo_documento)) = 'NIT'
+),
+valid AS (
+  SELECT
+    b.*,
+    -- Cumple estructura "#########-#"
+    (b.doc_id ~ '^[0-9]{9}-[0-9]$') AS estructura_ok,
+    -- Numérico > 0 (quitando guion)
+    CASE 
+      WHEN b.doc_id ~ '^[0-9]{9}-[0-9]$'
+      THEN replace(b.doc_id, '-', '')::numeric > 0
+      ELSE FALSE
+    END AS mayor_cero
+  FROM base b
+),
+viol AS (
+  SELECT
+    v.*,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN v.estructura_ok = FALSE THEN 'Formato inválido (esperado #########-#)' END,
+      CASE WHEN v.mayor_cero    = FALSE THEN 'Documento_identidad ≤ 0 o inválido' END
+    )) AS motivo
+  FROM valid v
+  WHERE v.estructura_ok = FALSE
+     OR v.mayor_cero    = FALSE
+)
+SELECT
+  '745'::text                     AS regla,
+  'ILC_Interesado'::text          AS objeto,
+  'preprod.ilc_interesado'::text  AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio           AS id_operacion,
+  NULL::varchar(30)               AS npn, -- no aplica
+  ('INCUMPLE: Tipo_Documento="NIT" → Documento_identidad debe ser >0 y cumplir estructura #########-#. '||v.motivo)::text AS descripcion,
+  v.doc_id::text                  AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+
+
 
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
