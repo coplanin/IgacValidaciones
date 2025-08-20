@@ -1291,6 +1291,56 @@ FROM viol v
 WHERE NOT v.ok_formato OR NOT v.ok_bloque
 ORDER BY v.id_operacion, v.npn;
 
+-- Regla 680: NPN para Condominio.Unidad_Predial
+
+
+DROP TABLE IF EXISTS reglas.regla_680;
+
+CREATE TABLE reglas.regla_680 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                       AS id_operacion,
+    p.numero_predial_nacional                   AS npn,
+    lower(btrim(p.condicion_predio))            AS cp,
+    substring(p.numero_predial_nacional FROM 22 FOR 5)  AS s22_26,
+    substring(p.numero_predial_nacional FROM 27 FOR 4)  AS s27_30,
+    (p.numero_predial_nacional ~ '^[0-9]{30}$') AS ok_formato
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN ('condominio.unidad_predial','condominio_unidad_predial')
+),
+viol AS (
+  SELECT
+    b.*,
+    (b.ok_formato AND b.s22_26 = '80000' AND b.s27_30 <> '0000') AS ok_bloque,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN b.ok_formato AND b.s22_26 <> '80000' THEN 'pos22-26≠80000' END,
+      CASE WHEN b.ok_formato AND b.s27_30 = '0000' THEN 'pos27-30=0000' END
+    )) AS motivo
+  FROM base b
+)
+SELECT
+  '680'::text                        AS regla,
+  'ILC_Predio'::text                 AS objeto,
+  'preprod.ilc_predio'::text         AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  ('INCUMPLE: Condominio.Unidad_Predial → '||v.motivo)::text AS descripcion,
+  (
+    's22_26='||COALESCE(v.s22_26,'(null)')||
+    ', s27_30='||COALESCE(v.s27_30,'(null)')
+  )::text                           AS valor,
+  FALSE                             AS cumple,
+  NOW()                             AS created_at,
+  NOW()                             AS updated_at
+FROM viol v
+WHERE NOT v.ok_formato OR NOT v.ok_bloque
+ORDER BY v.id_operacion, v.npn;
+
 
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
