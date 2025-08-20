@@ -719,6 +719,336 @@ ORDER BY v.id_operacion, v.objectid;
 
 
 
+-- Regla 708: Dirección No Estructurada bien diligenciada
+
+DROP TABLE IF EXISTS reglas.regla_708;
+
+CREATE TABLE reglas.regla_708 AS
+WITH base AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    btrim(e.id_operacion_predio)             AS id_operacion,
+    lower(btrim(e.tipo_direccion))           AS tipo_dir,
+    e.clase_via_principal,
+    e.valor_via_principal,
+    e.valor_via_generadora,
+    e.numero_predio,
+    e.nombre_predio
+  FROM preprod.extdireccion e
+),
+pred AS (
+  SELECT
+    btrim(p.id_operacion) AS id_operacion,
+    p.numero_predial_nacional AS npn
+  FROM preprod.ilc_predio p
+),
+chk AS (
+  SELECT
+    b.*,
+    -- único campo permitido
+    (b.nombre_predio IS NOT NULL AND btrim(b.nombre_predio) <> '') AS ok_nombre,
+    -- campos prohibidos (deben ir vacíos o NULL)
+    (b.clase_via_principal IS NULL OR btrim(b.clase_via_principal) = '') AS ok_clase,
+    (b.valor_via_principal IS NULL OR b.valor_via_principal = 0)         AS ok_vvp,
+    (b.valor_via_generadora IS NULL OR b.valor_via_generadora = 0)       AS ok_vvg,
+    (b.numero_predio IS NULL OR b.numero_predio = 0)                     AS ok_num
+  FROM base b
+  WHERE b.tipo_dir = 'no_estructurada'
+),
+viol AS (
+  SELECT
+    c.*,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT c.ok_nombre THEN 'Nombre_Predio debe estar diligenciado' END,
+      CASE WHEN NOT c.ok_clase  THEN 'Clase_Via_Principal debe ser NULL/vacío' END,
+      CASE WHEN NOT c.ok_vvp    THEN 'Valor_Via_Principal debe ser NULL/0' END,
+      CASE WHEN NOT c.ok_vvg    THEN 'Valor_Via_Generadora debe ser NULL/0' END,
+      CASE WHEN NOT c.ok_num    THEN 'Numero_Predio debe ser NULL/0' END
+    )) AS motivo
+  FROM chk c
+  WHERE NOT (c.ok_nombre AND c.ok_clase AND c.ok_vvp AND c.ok_vvg AND c.ok_num)
+)
+SELECT
+  '708'::text                     AS regla,
+  'EXTDireccion'::text            AS objeto,
+  'preprod.extdireccion'::text    AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  p.npn,
+  ('INCUMPLE: Dirección No Estructurada → '||v.motivo)::text AS descripcion,
+  (
+    'nombre_predio='||COALESCE(v.nombre_predio,'(NULL)')
+    ||', clase_via_principal='||COALESCE(v.clase_via_principal,'(NULL)')
+    ||', valor_via_principal='||COALESCE(v.valor_via_principal::text,'(NULL)')
+    ||', valor_via_generadora='||COALESCE(v.valor_via_generadora::text,'(NULL)')
+    ||', numero_predio='||COALESCE(v.numero_predio::text,'(NULL)')
+  )::text AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+LEFT JOIN pred p ON p.id_operacion = v.id_operacion
+ORDER BY v.id_operacion, v.objectid;
+
+-- Regla 716: Longitud máxima de Nombre_Predio
+
+DROP TABLE IF EXISTS reglas.regla_716;
+
+CREATE TABLE reglas.regla_716 AS
+WITH base AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    btrim(e.id_operacion_predio)     AS id_operacion,
+    e.nombre_predio,
+    length(e.nombre_predio)          AS longitud
+  FROM preprod.extdireccion e
+  WHERE e.nombre_predio IS NOT NULL AND btrim(e.nombre_predio) <> ''
+),
+viol AS (
+  SELECT
+    b.*,
+    'INCUMPLE: Nombre_Predio supera los 49 caracteres (longitud='
+    || b.longitud || ')' AS motivo
+  FROM base b
+  WHERE b.longitud > 49
+)
+SELECT
+  '716'::text                     AS regla,
+  'EXTDireccion'::text            AS objeto,
+  'preprod.extdireccion'::text    AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  NULL::text                      AS npn,
+  v.motivo                        AS descripcion,
+  v.nombre_predio                 AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.id_operacion, v.objectid;
+
+-- Regla 717: Coherencia NPN (dígitos 6–7) vs tipo de dirección
+-- Si d6-7 <> '00' (no rural)  → la(s) dirección(es) deben ser Estructuradas.
+-- Si d6-7  = '00' (rural)     → la(s) dirección(es) deben ser No_Estructuradas.
+-- EXCEPCIÓN: rurales en zonas de comportamiento urbano o centros poblados rurales
+--            (se pueden excluir vía CTE `excepciones` cuando tengas el insumo).
+
+DROP TABLE IF EXISTS reglas.regla_717;
+
+CREATE TABLE reglas.regla_717 AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                  AS id_operacion,
+    p.numero_predial_nacional              AS npn,
+    substring(p.numero_predial_nacional FROM 6 FOR 2) AS d67
+  FROM preprod.ilc_predio p
+  WHERE p.numero_predial_nacional IS NOT NULL
+),
+-- Normalizamos tipo_direccion y agregamos por predio
+dir_agg AS (
+  SELECT
+    btrim(e.id_operacion_predio) AS id_operacion,
+    COUNT(*)                     AS n_dir,
+    SUM( CASE WHEN lower(btrim(e.tipo_direccion)) IN ('estructurada','estructurada ') THEN 1 ELSE 0 END ) AS n_estructurada,
+    SUM( CASE WHEN lower(btrim(e.tipo_direccion)) IN ('no_estructurada','no estructurada','no-estructurada') THEN 1 ELSE 0 END ) AS n_no_estructurada
+  FROM preprod.extdireccion e
+  GROUP BY 1
+),
+excepciones AS (
+  SELECT DISTINCT id_operacion
+  FROM (VALUES
+    -- ('<id_operacion_predio_1>'),
+    -- ('<id_operacion_predio_2>')
+    ('__none__')  -- placeholder para que el CTE no sea vacío
+  ) AS x(id_operacion)
+),
+eval AS (
+  SELECT
+    pr.objectid,
+    pr.globalid,
+    pr.id_operacion,
+    pr.npn,
+    pr.d67,
+    COALESCE(da.n_dir,0)           AS n_dir,
+    COALESCE(da.n_estructurada,0)  AS n_estructurada,
+    COALESCE(da.n_no_estructurada,0) AS n_no_estructurada,
+    (pr.d67 = '00')  AS es_rural,
+    (pr.d67 <> '00') AS es_no_rural,
+    -- Está en la lista de excepciones
+    (EXISTS (SELECT 1 FROM excepciones ex WHERE ex.id_operacion = pr.id_operacion)) AS es_excepcion_rural
+  FROM predio pr
+  LEFT JOIN dir_agg da ON da.id_operacion = pr.id_operacion
+),
+viol AS (
+  SELECT
+    e.*,
+    CASE
+      -- NO RURAL: todas deben ser Estructuradas (si existen direcciones)
+      WHEN e.es_no_rural AND e.n_dir > 0 AND e.n_no_estructurada > 0
+        THEN 'INCUMPLE: d6-7<>"00" ⇒ dirección debe ser Estructurada; se encontró No_Estructurada'
+      -- RURAL (sin excepción): todas deben ser No_Estructuradas (si existen direcciones)
+      WHEN e.es_rural AND NOT e.es_excepcion_rural AND e.n_dir > 0 AND e.n_estructurada > 0
+        THEN 'INCUMPLE: d6-7="00" ⇒ dirección debe ser No_Estructurada; se encontró Estructurada'
+
+      ELSE NULL
+    END AS motivo
+  FROM eval e
+  WHERE
+        (e.es_no_rural AND e.n_dir > 0 AND e.n_no_estructurada > 0)
+     OR (e.es_rural AND NOT e.es_excepcion_rural AND e.n_dir > 0 AND e.n_estructurada > 0)
+     -- OR (e.n_dir = 0)  -- activar si la regla exige que todo predio tenga dirección
+)
+SELECT
+  '717'::text                 AS regla,
+  'EXTDireccion'::text        AS objeto,
+  'preprod.extdireccion'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  v.npn,
+  v.motivo                    AS descripcion,
+  ('d67='||v.d67||', n_dir='||v.n_dir||
+   ', n_estructurada='||v.n_estructurada||
+   ', n_no_estructurada='||v.n_no_estructurada)::text AS valor,
+  FALSE                       AS cumple,
+  NOW()                       AS created_at,
+  NOW()                       AS updated_at
+FROM viol v
+ORDER BY v.id_operacion, v.npn;
+
+-- Regla 676: Campos 22-30 del NPN en predios PH_Matriz deben ser "900000000"
+
+DROP TABLE IF EXISTS reglas.regla_676;
+
+CREATE TABLE reglas.regla_676 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)          AS id_operacion,
+    p.numero_predial_nacional      AS npn,
+    lower(btrim(p.condicion_predio)) AS condicion_predio,
+    substring(p.numero_predial_nacional FROM 22 FOR 9) AS npn_22_30
+  FROM preprod.ilc_predio p
+  WHERE p.numero_predial_nacional IS NOT NULL
+)
+SELECT
+  '676'::text                     AS regla,
+  'ILC_Predio'::text              AS objeto,
+  'preprod.ilc_predio'::text      AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  'INCUMPLE: predios con condición PH_Matriz deben tener posiciones 22-30 del NPN = "900000000"'::text AS descripcion,
+  b.npn_22_30                     AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM base b
+WHERE b.condicion_predio IN ('ph.matriz','ph_matriz','ph matriz')
+  AND b.npn_22_30 <> '900000000'
+ORDER BY b.id_operacion, b.npn;
+
+-- Regla 725 (final): Complemento obligatorio en unidades
+
+DROP TABLE IF EXISTS reglas.regla_725;
+
+CREATE TABLE reglas.regla_725 AS
+WITH unidades AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)             AS id_operacion,
+    p.numero_predial_nacional         AS npn,
+    lower(btrim(p.condicion_predio))  AS cp
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.condicion_predio)) IN (
+    'ph.unidad_predial','ph_unidad_predial',
+    'condominio.unidad_predial','condominio_unidad_predial'
+  )
+),
+dir_token AS (
+  SELECT
+    e.id_operacion_predio             AS id_operacion,
+    e.objectid                        AS dir_oid,
+    unnest(
+      regexp_split_to_array(upper(COALESCE(e.complemento,'')), '[^A-Z0-9]+')
+    ) AS tok
+  FROM preprod.extdireccion e
+),
+-- Filtramos solo tokens no vacíos
+dir_norm AS (
+  SELECT
+    id_operacion,
+    dir_oid,
+    tok
+  FROM dir_token
+  WHERE tok <> ''
+),
+-- Evaluamos por predio
+dir_eval AS (
+  SELECT
+    id_operacion,
+    COUNT(DISTINCT dir_oid) AS n_dir,
+    BOOL_OR(tok = ANY(ARRAY[
+      'AP','BQ','BD','CS','ED','ET','GA','IN','L','LO','MZ','OF','PQ','PN','TO','UN','UR'
+    ])) AS tiene_codigo,
+    ARRAY_AGG(DISTINCT tok) FILTER (
+      WHERE tok = ANY(ARRAY[
+        'AP','BQ','BD','CS','ED','ET','GA','IN','L','LO','MZ','OF','PQ','PN','TO','UN','UR'
+      ])
+    ) AS codigos_encontrados
+  FROM dir_norm
+  GROUP BY id_operacion
+),
+eval AS (
+  SELECT
+    u.objectid, u.globalid, u.id_operacion, u.npn, u.cp,
+    COALESCE(de.n_dir, 0)                           AS n_dir,
+    COALESCE(de.tiene_codigo, FALSE)                AS tiene_codigo,
+    COALESCE(de.codigos_encontrados, ARRAY[]::text[]) AS codigos_encontrados
+  FROM unidades u
+  LEFT JOIN dir_eval de ON de.id_operacion = u.id_operacion
+)
+-- Solo incumplimientos
+SELECT
+  '725'::text                      AS regla,
+  'EXTDireccion'::text             AS objeto,
+  'preprod.extdireccion'::text     AS tabla,
+  e.objectid,
+  e.globalid,
+  e.id_operacion,
+  e.npn,
+  CASE
+    WHEN e.n_dir = 0 THEN
+      'INCUMPLE: unidad sin direcciones asociadas (se requiere al menos una con código de complemento)'
+    WHEN e.tiene_codigo = FALSE THEN
+      'INCUMPLE: ninguna dirección asociada contiene código de complemento permitido (AP,BQ,BD,CS,ED,ET,GA,IN,L,LO,MZ,OF,PQ,PN,TO,UN,UR)'
+  END AS descripcion,
+  (
+    'n_dir='||e.n_dir||', codigos_encontrados='||
+    CASE
+      WHEN array_length(e.codigos_encontrados,1) IS NULL THEN '(ninguno)'
+      ELSE array_to_string(e.codigos_encontrados, '|')
+    END
+  )::text                          AS valor,
+  FALSE                            AS cumple,
+  NOW()                            AS created_at,
+  NOW()                            AS updated_at
+FROM eval e
+WHERE e.n_dir = 0 OR e.tiene_codigo = FALSE
+ORDER BY e.id_operacion, e.objectid;
+
+
+
+
 
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
