@@ -162,6 +162,562 @@ WHERE
   OR t.mi_trim !~ '^[0-9]{1,7}$'
 ORDER BY t.objectid;
 
+--regla 688
+-- Regla 688: Para cada Matricula_Inmobiliaria (no vacía), Codigo_ORIP debe ser exactamente 3 dígitos.
+DROP TABLE IF EXISTS reglas.regla_688;
+CREATE TABLE reglas.regla_688 AS
+WITH t AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    p.id_operacion,
+    p.numero_predial_nacional,
+    btrim(coalesce(p.matricula_inmobiliaria,'')) AS mi,
+    btrim(coalesce(p.codigo_orip,''))            AS orip
+  FROM preprod.ilc_predio p
+),
+viol AS (
+  SELECT
+    objectid, globalid, id_operacion, numero_predial_nacional, mi, orip,
+    CASE
+      WHEN orip = '' THEN 'Código_ORIP vacío (debe ser 3 dígitos)'
+      WHEN orip !~ '^[0-9]{3}$' THEN 'Código_ORIP inválido: debe tener 3 dígitos [0-9]'
+    END AS detalle
+  FROM t
+  WHERE mi <> ''                            -- aplica solo si hay matrícula
+    AND (orip = '' OR orip !~ '^[0-9]{3}$') -- falla formato ORIP
+)
+SELECT
+  '688'::text                                    AS regla,
+  'ILC_Predio'::text                             AS objeto,
+  'preprod.ilc_predio'::text                     AS tabla,
+  v.objectid                                     AS objectid,
+  v.globalid                                     AS globalid,
+  v.id_operacion                                 AS predio_id,
+  v.numero_predial_nacional                      AS numero_predial,
+  ('Matrícula '||v.mi||': '||v.detalle)          AS descripcion,
+  v.orip                                         AS valor,       -- ORIP actual
+  FALSE                                          AS cumple,
+  NOW()                                          AS created_at,
+  NOW()                                          AS updated_at
+FROM viol v
+ORDER BY v.objectid;
+
+--regla 689
+create table reglas.regla_689 as
+WITH req AS (  -- predios a los que NO se les permite UC
+  SELECT
+    p.objectid,
+    p.globalid,
+    p.id_operacion,
+    p.numero_predial_nacional,
+    lower(btrim(p.destinacion_economica)) AS de
+  FROM preprod.ilc_predio p
+  WHERE lower(btrim(p.destinacion_economica)) IN (
+    'lote_urbanizable_no_construido',
+    'lote_rural'
+  )
+),
+uc AS (       
+  SELECT btrim(id_operacion_predio) AS id_operacion_predio,
+         COUNT(*) AS n_uc
+  FROM preprod.cr_unidadconstruccion
+  GROUP BY 1
+)
+SELECT
+  '689'::text                                   AS regla,          -- pon el ID que uses
+  'ILC_Predio'::text                            AS objeto,
+  'preprod.ilc_predio'::text                    AS tabla,
+  r.objectid                                    AS objectid,
+  r.globalid                                    AS globalid,
+  r.id_operacion                                AS predio_id,
+  r.numero_predial_nacional                     AS numero_predial,
+  'Destinación '||r.de||' NO debe tener UC asociada, pero tiene' AS descripcion,
+  u.n_uc                                        AS valor,          -- cuántas UC tiene
+  FALSE                                         AS cumple,
+  NOW()                                         AS created_at,
+  NOW()                                         AS updated_at
+FROM req r
+JOIN uc  u ON btrim(r.id_operacion) = u.id_operacion_predio
+ORDER BY r.objectid;
+
+--regla 690
+DROP TABLE IF EXISTS reglas.regla_690;
+CREATE TABLE reglas.regla_690 AS
+WITH base AS (  -- predios con NPN válido y datos clave
+  SELECT
+    p.objectid,
+    p.globalid,
+    p.id_operacion,
+    p.numero_predial_nacional AS npn,
+    lower(btrim(p.destinacion_economica)) AS de,
+    lower(btrim(p.condicion_predio))      AS cp
+  FROM preprod.ilc_predio p
+  WHERE p.numero_predial_nacional ~ '^[0-9]{30}$'
+),
+-- Conteo de Unidades de Construcción por predio (id_operacion)
+uc AS (
+  SELECT btrim(c.id_operacion_predio) AS id_operacion_predio,
+         COUNT(*) AS n_uc
+  FROM preprod.cr_unidadconstruccion c
+  GROUP BY 1
+),
+-- Área de Terreno por predio (suma de áreas; calcula en SRID 9377).
+-- Maneja SRID 0 (desconocido) asignándolo a 9377.
+terr AS (
+  SELECT
+    btrim(t.id_operacion_predio) AS id_operacion_predio,
+    SUM(
+      CASE
+        WHEN t.shape IS NULL THEN NULL
+        WHEN ST_SRID(t.shape) = 9377 THEN ST_Area(t.shape)
+        WHEN ST_SRID(t.shape) = 0    THEN ST_Area(ST_SetSRID(t.shape, 9377))
+        ELSE ST_Area(ST_Transform(t.shape, 9377))
+      END
+    ) AS area_m2
+  FROM preprod.cr_terreno t
+  WHERE t.shape IS NOT NULL
+  GROUP BY 1
+),
+eval AS (
+  SELECT
+    b.*,
+    substring(b.npn FROM 6 FOR 2) AS d67,
+    COALESCE(u.n_uc, 0)           AS n_uc,
+    t.area_m2
+  FROM base b
+  LEFT JOIN uc   u ON btrim(b.id_operacion) = u.id_operacion_predio
+  LEFT JOIN terr t ON btrim(b.id_operacion) = t.id_operacion_predio
+),
+-- Clasificación de bloques y chequeos (todo en minúsculas)
+viol AS (
+  SELECT
+    e.*,
+    -- grupos
+    (e.de IN ('acuicola','agricola','agroindustrial','agropecuario','agroforestal',
+              'forestal','infraestructura_asociada_produccion_agropecuaria',
+              'infraestructura_saneamiento_basico','mineria_hidrocarburos','pecuario','lote_rural')) AS es_agro_rural,
+    (e.de IN ('lote_urbanizable_no_urbanizado','lote_urbanizable_no_construido')) AS es_urbanizable,
+    -- fallas por bloque
+    CASE WHEN e.de <> 'lote_rural' THEN (e.d67 <> '00') ELSE FALSE END AS f_agro_d67,
+    CASE WHEN e.de = 'lote_rural'  THEN (e.d67 <> '00') ELSE FALSE END AS f_lr_d67,
+    CASE WHEN e.de = 'lote_rural'  THEN (e.n_uc > 0)    ELSE FALSE END AS f_lr_uc,
+    CASE WHEN e.de = 'lote_rural'  THEN (e.cp IN ('ph_matriz','ph_unidad_predial','ph.unidad_predial',
+                                                  'condominio_matriz','condominio_unidad_predial')) ELSE FALSE END AS f_lr_cond,
+    CASE WHEN e.de = 'lote_rural'  THEN (e.area_m2 IS NULL OR e.area_m2 >= 500) ELSE FALSE END AS f_lr_area,
+    -- urbanizable
+    CASE WHEN e.de IN ('lote_urbanizable_no_urbanizado','lote_urbanizable_no_construido')
+         THEN (e.d67 = '00') ELSE FALSE END AS f_urb_d67
+  FROM eval e
+),
+-- Armar texto de motivo y conteo de fallas
+out AS (
+  SELECT
+    v.*,
+    (
+      (v.f_agro_d67)::int +
+      (v.f_lr_d67)::int +
+      (v.f_lr_uc)::int +
+      (v.f_lr_cond)::int +
+      (v.f_lr_area)::int +
+      (v.f_urb_d67)::int
+    ) AS fail_count,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN v.f_agro_d67 THEN 'dígitos 6-7 <> 00 (agro-rural)' END,
+      CASE WHEN v.f_lr_d67   THEN 'dígitos 6-7 <> 00 (lote_rural)' END,
+      CASE WHEN v.f_lr_uc    THEN 'tiene UC asociada ('||v.n_uc||')' END,
+      CASE WHEN v.f_lr_cond  THEN 'condición prohibida: '||v.cp END,
+      CASE WHEN v.f_lr_area  THEN COALESCE('área terreno '||round(v.area_m2::numeric,2)||' m² (>= 500 o sin terreno)','sin terreno') END,
+      CASE WHEN v.f_urb_d67  THEN 'dígitos 6-7 = 00 (urbanizable debe ser ≠ 00)' END
+    )) AS motivo
+  FROM viol v
+)
+SELECT
+  '690'::text                                   AS regla,
+  'ILC_Predio'::text                            AS objeto,
+  'preprod.ilc_predio'::text                    AS tabla,
+  o.objectid                                    AS objectid,
+  o.globalid                                    AS globalid,
+  o.id_operacion                                AS predio_id,
+  o.npn                                         AS numero_predial,
+  ('Destinación '||o.de||' incumple: '||o.motivo) AS descripcion,
+  o.fail_count                                  AS valor,
+  FALSE                                         AS cumple,
+  NOW()                                         AS created_at,
+  NOW()                                         AS updated_at
+FROM out o
+WHERE
+  (o.es_agro_rural  AND (o.f_agro_d67 OR o.f_lr_d67 OR o.f_lr_uc OR o.f_lr_cond OR o.f_lr_area))
+  OR
+  (o.es_urbanizable AND o.f_urb_d67)
+ORDER BY o.objectid;
+
+--673
+
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.id_operacion,
+    p.numero_predial_nacional AS npn,
+    substring(p.numero_predial_nacional FROM 19 FOR 3)::int AS a_num
+  FROM preprod.ilc_predio p
+  WHERE left(p.numero_predial_nacional, 17) = '13836000200000002'
+    AND substring(p.numero_predial_nacional FROM 18 FOR 1) = 'A'
+    AND substring(p.numero_predial_nacional FROM 19 FOR 3) ~ '^[0-9]{3}$'
+),
+ord AS (
+  SELECT
+    b.*,
+    LAG(a_num) OVER (ORDER BY a_num) AS prev_a
+  FROM base b
+)
+SELECT
+  npn,
+  'salto: falta A' || LPAD((prev_a + 1)::text,3,'0') ||
+  CASE WHEN a_num - prev_a > 2
+       THEN ' ... A' || LPAD((a_num - 1)::text,3,'0')
+       ELSE ''
+  END AS detalle
+FROM ord
+WHERE prev_a IS NOT NULL
+  AND (a_num - prev_a) > 1
+ORDER BY a_num;
+
+
+--692
+
+-- Regla 692: Consistencia ORIP/Matrícula vs Área_Registral_M2
+-- Vacío = NULL o cadena vacía
+
+DROP TABLE IF EXISTS reglas.regla_692;
+
+CREATE TABLE reglas.regla_692 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    p.id_operacion,
+    p.numero_predial_nacional        AS npn,
+    p.codigo_orip,
+    p.matricula_inmobiliaria,
+    p.area_registral_m2,
+    (p.codigo_orip IS NULL OR btrim(p.codigo_orip) = '')                       AS orip_vacia,
+    (p.matricula_inmobiliaria IS NULL OR btrim(p.matricula_inmobiliaria) = '') AS mi_vacia
+  FROM preprod.ilc_predio p
+)
+
+-- Caso 1: ORIP y Matrícula vacías → área debe ser exactamente 0
+SELECT
+  '692'::text                        AS regla,
+  'ILC_Predio'::text                 AS objeto,
+  'preprod.ilc_predio'::text         AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  'INCUMPLE: Sin ORIP/Matrícula pero Área_Registral_M2 ≠ 0 (NULL también incumple)'::text AS descripcion,
+  b.area_registral_m2                AS valor,
+  FALSE                               AS cumple,
+  NOW()                               AS created_at,
+  NOW()                               AS updated_at
+FROM base b
+WHERE b.orip_vacia AND b.mi_vacia
+  AND (b.area_registral_m2 IS NULL OR b.area_registral_m2 <> 0)
+
+UNION ALL
+
+-- Caso 2: Área > 0 → ORIP y Matrícula deben estar diligenciados
+SELECT
+  '692',
+  'ILC_Predio',
+  'preprod.ilc_predio',
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  'INCUMPLE: Área_Registral_M2 > 0 pero falta ORIP y/o Matrícula',
+  b.area_registral_m2,
+  FALSE,
+  NOW(),
+  NOW()
+FROM base b
+WHERE COALESCE(b.area_registral_m2,0) > 0
+  AND (b.orip_vacia OR b.mi_vacia)
+
+UNION ALL
+
+-- Caso 3: Con ORIP y Matrícula → área no puede ser 0, NULL ni vacío (' ')
+SELECT
+  '692',
+  'ILC_Predio',
+  'preprod.ilc_predio',
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  'INCUMPLE: Con ORIP y Matrícula pero Área_Registral_M2 = 0 o NULL o vacío',
+  b.area_registral_m2,
+  FALSE,
+  NOW(),
+  NOW()
+FROM base b
+WHERE (NOT b.orip_vacia AND NOT b.mi_vacia)
+  AND (b.area_registral_m2 IS NULL OR b.area_registral_m2 = 0 OR btrim(b.area_registral_m2::text) = '')
+
+ORDER BY objectid;
+
+-- Resumen opcional
+SELECT descripcion, COUNT(*) FROM reglas.regla_692 GROUP BY descripcion ORDER BY 2 DESC;
+
+---693
+-- Regla 693: Relación entre CR_Terreno ↔ ILC_Predio (SIN NOVEDADES)
+-- Valida que los predios con condición específica tengan exactamente 1 terreno,
+-- salvo la excepción de predios informales en altura.
+
+DROP TABLE IF EXISTS reglas.regla_693;
+
+CREATE TABLE reglas.regla_693 AS
+WITH base AS (
+  SELECT 
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)              AS id_operacion,
+    p.numero_predial_nacional          AS npn,
+    p.condicion_predio,
+
+    CASE 
+      WHEN lower(btrim(p.condicion_predio)) IN (
+        'nph', 'ph.matriz', 'ph_matriz',
+        'condominio.matriz', 'condominio_matriz',
+        'condominio.unidad_predial', 'condominio_unidad_predial',
+        'via', 'vía',
+        'bien_uso_publico', 'bien_uso_público',
+        'parque_cementerio.matriz',
+        'informal'
+      )
+      THEN TRUE ELSE FALSE 
+    END AS es_condicion_validada,
+
+    CASE 
+      WHEN lower(btrim(p.condicion_predio)) = 'informal'
+       AND substring(p.numero_predial_nacional FROM 22 FOR 1) = '2'
+       AND substring(p.numero_predial_nacional FROM 27 FOR 4) <> '0000'
+      THEN TRUE ELSE FALSE
+    END AS es_informal_en_altura
+  FROM preprod.ilc_predio p
+),
+join_terreno AS (
+  SELECT 
+    b.objectid,
+    b.globalid,
+    b.id_operacion,
+    b.npn,
+    b.condicion_predio,
+    b.es_condicion_validada,
+    b.es_informal_en_altura,
+    COUNT(t.objectid) AS n_terrenos
+  FROM base b
+  LEFT JOIN preprod.cr_terreno t 
+    ON btrim(t.id_operacion_predio) = btrim(b.id_operacion)
+  GROUP BY b.objectid, b.globalid, b.id_operacion, b.npn, b.condicion_predio,
+           b.es_condicion_validada, b.es_informal_en_altura
+)
+
+-- ==========================
+-- INCUMPLIMIENTOS
+-- ==========================
+SELECT
+  '693'::text                   AS regla,
+  'ILC_Predio'::text            AS objeto,
+  'preprod.ilc_predio'::text    AS tabla,
+  j.objectid,
+  j.globalid,
+  j.id_operacion,
+  j.npn,
+  'INCUMPLE: condicion_predio=' || COALESCE(j.condicion_predio,'(null)') ||
+  ', n_terrenos=' || COALESCE(j.n_terrenos::text,'(null)') ||
+  ', informal_en_altura=' || (CASE WHEN j.es_informal_en_altura THEN 'true' ELSE 'false' END) AS descripcion,
+  j.n_terrenos::text            AS valor,
+  FALSE                         AS cumple,
+  NOW()                         AS created_at,
+  NOW()                         AS updated_at
+FROM join_terreno j
+WHERE
+      (j.es_condicion_validada AND NOT j.es_informal_en_altura AND j.n_terrenos <> 1)
+   OR (NOT j.es_condicion_validada AND j.n_terrenos > 0)
+   OR (j.es_informal_en_altura AND j.n_terrenos > 1)
+
+ORDER BY j.id_operacion, j.npn;
+
+
+
+select descripcion from
+reglas.regla_693
+group by descripcion
+
+
+-- regla 675
+-- Regla 675: Validar consistencia Rural (posiciones 6–7 = "00")
+-- Si es Rural, posiciones 10–13 deben ser "0000"
+
+DROP TABLE IF EXISTS reglas.regla_675;
+
+CREATE TABLE reglas.regla_675 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)       AS id_operacion,
+    p.numero_predial_nacional   AS npn,
+    substring(p.numero_predial_nacional FROM 6 FOR 2)  AS npn_6_7,
+    substring(p.numero_predial_nacional FROM 10 FOR 4) AS npn_10_13
+  FROM preprod.ilc_predio p
+)
+SELECT
+  '675'::text                AS regla,
+  'ILC_Predio'::text         AS objeto,
+  'preprod.ilc_predio'::text AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  'INCUMPLE: Predio con posiciones 6–7 = "00" (Rural) pero posiciones 10–13 <> "0000"' AS descripcion,
+  'npn_6_7='||b.npn_6_7||', npn_10_13='||b.npn_10_13 AS valor,
+  FALSE                     AS cumple,
+  NOW()                     AS created_at,
+  NOW()                     AS updated_at
+FROM base b
+WHERE b.npn_6_7 = '00'
+  AND b.npn_10_13 <> '0000'
+ORDER BY b.id_operacion, b.npn;
+
+-- Regla 713: Solo una dirección principal por predio cuando hay múltiples direcciones
+
+DROP TABLE IF EXISTS reglas.regla_713;
+
+CREATE TABLE reglas.regla_713 AS
+WITH dir_agregada AS (
+  SELECT
+    btrim(e.id_operacion_predio) AS id_operacion,
+    COUNT(*)                     AS n_direcciones,
+    SUM(
+      CASE
+        -- Normalizamos la marca de principal: Si/Sí/1/true/t (cualquier casing y espacios)
+        WHEN lower(btrim(e.es_direccion_principal)) IN ('si','sí','s','true','t','1') THEN 1
+        ELSE 0
+      END
+    ) AS n_principal
+  FROM preprod.extdireccion e
+  GROUP BY 1
+),
+pred AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)       AS id_operacion,
+    p.numero_predial_nacional   AS npn
+  FROM preprod.ilc_predio p
+)
+SELECT
+  '713'::text                   AS regla,
+  'ILC_Predio'::text            AS objeto,
+  'preprod.extdireccion'::text  AS tabla,
+  pr.objectid,
+  pr.globalid,
+  d.id_operacion,
+  pr.npn,
+  CASE
+    WHEN d.n_principal = 0 THEN
+      'INCUMPLE: predio con múltiples direcciones pero ninguna principal'
+    WHEN d.n_principal > 1 THEN
+      'INCUMPLE: predio con múltiples direcciones y más de una principal ('||d.n_principal||')'
+  END                           AS descripcion,
+  ('n_direcciones='||d.n_direcciones||', n_principal='||d.n_principal) AS valor,
+  FALSE                         AS cumple,
+  NOW()                         AS created_at,
+  NOW()                         AS updated_at
+FROM dir_agregada d
+LEFT JOIN pred pr ON pr.id_operacion = d.id_operacion
+WHERE d.n_direcciones > 1         -- solo aplica si tiene más de una dirección
+  AND d.n_principal <> 1          -- exactamente una debe ser principal
+ORDER BY d.id_operacion;
+
+---- Regla 707: Dirección Estructurada bien diligenciada
+
+DROP TABLE IF EXISTS reglas.regla_707;
+
+CREATE TABLE reglas.regla_707 AS
+WITH base AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    btrim(e.id_operacion_predio)             AS id_operacion,
+    lower(btrim(e.tipo_direccion))           AS tipo_dir,
+    e.clase_via_principal,
+    e.valor_via_principal,
+    e.valor_via_generadora,
+    e.numero_predio,
+    e.nombre_predio
+  FROM preprod.extdireccion e
+),
+pred AS (
+  SELECT
+    btrim(p.id_operacion) AS id_operacion,
+    p.numero_predial_nacional AS npn
+  FROM preprod.ilc_predio p
+),
+chk AS (
+  SELECT
+    b.*,
+    -- Campos obligatorios (texto no vacío, numérico no nulo/0)
+    (b.clase_via_principal IS NOT NULL AND btrim(b.clase_via_principal) <> '') AS ok_clase,
+    (b.valor_via_principal   IS NOT NULL AND b.valor_via_principal   <> 0)     AS ok_vvp,
+    (b.valor_via_generadora  IS NOT NULL AND b.valor_via_generadora  <> 0)     AS ok_vvg,
+    (b.numero_predio         IS NOT NULL AND b.numero_predio         <> 0)     AS ok_num,
+    -- Campo prohibido
+    (b.nombre_predio IS NULL OR btrim(b.nombre_predio) = '')                    AS ok_nombre
+  FROM base b
+  WHERE b.tipo_dir = 'estructurada'
+),
+viol AS (
+  SELECT
+    c.*,
+    -- construir motivo con las piezas que incumplen
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT c.ok_clase  THEN 'falta Clase_Via_Principal' END,
+      CASE WHEN NOT c.ok_vvp    THEN 'falta Valor_Via_Principal' END,
+      CASE WHEN NOT c.ok_vvg    THEN 'falta Valor_Via_Generadora' END,
+      CASE WHEN NOT c.ok_num    THEN 'falta Numero_Predio' END,
+      CASE WHEN NOT c.ok_nombre THEN 'Nombre_Predio debe ser vacío/NULL' END
+    )) AS motivo
+  FROM chk c
+  WHERE NOT (c.ok_clase AND c.ok_vvp AND c.ok_vvg AND c.ok_num AND c.ok_nombre)
+)
+SELECT
+  '707'::text                     AS regla,
+  'EXTDireccion'::text            AS objeto,
+  'preprod.extdireccion'::text    AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion,
+  p.npn,
+  ('INCUMPLE: Dirección Estructurada → '||v.motivo)::text AS descripcion,
+  -- Valor informativo con snapshot de campos clave
+  (
+    'clase_via_principal='||COALESCE(v.clase_via_principal,'(NULL)')
+    ||', valor_via_principal='||COALESCE(v.valor_via_principal::text,'(NULL)')
+    ||', valor_via_generadora='||COALESCE(v.valor_via_generadora::text,'(NULL)')
+    ||', numero_predio='||COALESCE(v.numero_predio::text,'(NULL)')
+    ||', nombre_predio='||COALESCE(NULLIF(btrim(v.nombre_predio),''),'(vacío)')
+  )::text                        AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+LEFT JOIN pred p ON p.id_operacion = v.id_operacion
+ORDER BY v.id_operacion, v.objectid;
+
+
 
 
 --///////////////////////////////////////////////////////////////////////////////////////////////////////////////
