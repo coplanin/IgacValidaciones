@@ -1910,8 +1910,983 @@ SELECT
 FROM viol v
 ORDER BY v.id_operacion_predio, v.objectid;
 
+--746
+DROP TABLE IF EXISTS reglas.regla_746;
+
+CREATE TABLE reglas.regla_746 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio)   AS id_operacion_predio,
+    upper(btrim(i.tipo))           AS tipo,
+    btrim(i.primer_nombre)         AS primer_nombre,
+    btrim(i.segundo_nombre)        AS segundo_nombre,
+    btrim(i.primer_apellido)       AS primer_apellido,
+    btrim(i.segundo_apellido)      AS segundo_apellido
+  FROM preprod.ilc_interesado i
+  WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
+),
+viol AS (
+  SELECT
+    b.*,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE 
+        WHEN b.primer_nombre IS NULL OR b.primer_nombre = '' 
+        THEN 'Primer_Nombre es obligatorio' 
+        WHEN b.primer_nombre !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$' 
+        THEN 'Primer_Nombre contiene números o caracteres inválidos' 
+      END,
+      CASE 
+        WHEN b.primer_apellido IS NULL OR b.primer_apellido = '' 
+        THEN 'Primer_Apellido es obligatorio' 
+        WHEN b.primer_apellido !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$' 
+        THEN 'Primer_Apellido contiene números o caracteres inválidos' 
+      END,
+      CASE 
+        WHEN b.segundo_nombre IS NOT NULL AND b.segundo_nombre <> '' 
+             AND b.segundo_nombre !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$' 
+        THEN 'Segundo_Nombre contiene números o caracteres inválidos' 
+      END,
+      CASE 
+        WHEN b.segundo_apellido IS NOT NULL AND b.segundo_apellido <> '' 
+             AND b.segundo_apellido !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$' 
+        THEN 'Segundo_Apellido contiene números o caracteres inválidos' 
+      END
+    )) AS motivo
+  FROM base b
+  WHERE 
+    -- incumple si hay motivo
+    (b.primer_nombre IS NULL OR b.primer_nombre = '' OR b.primer_nombre !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
+    OR (b.primer_apellido IS NULL OR b.primer_apellido = '' OR b.primer_apellido !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
+    OR (b.segundo_nombre IS NOT NULL AND b.segundo_nombre <> '' AND b.segundo_nombre !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
+    OR (b.segundo_apellido IS NOT NULL AND b.segundo_apellido <> '' AND b.segundo_apellido !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
+)
+SELECT
+  '746'::text                     AS regla,
+  'ILC_Interesado'::text          AS objeto,
+  'preprod.ilc_interesado'::text  AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio           AS id_operacion,
+  NULL::varchar(30)               AS npn, -- no aplica
+  ('INCUMPLE: Persona_Natural → Nombres/Apellidos inválidos. '||v.motivo)::text AS descripcion,
+  (
+    'primer_nombre='||COALESCE(v.primer_nombre,'(null)')|| 
+    ', segundo_nombre='||COALESCE(v.segundo_nombre,'(null)')||
+    ', primer_apellido='||COALESCE(v.primer_apellido,'(null)')||
+    ', segundo_apellido='||COALESCE(v.segundo_apellido,'(null)')
+  )::text                         AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--747
+
+DROP TABLE IF EXISTS reglas.regla_747;
+
+CREATE TABLE reglas.regla_747 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio)   AS id_operacion_predio,
+    upper(btrim(i.tipo))           AS tipo,
+    btrim(i.primer_nombre)         AS primer_nombre,
+    btrim(i.segundo_nombre)        AS segundo_nombre,
+    btrim(i.primer_apellido)       AS primer_apellido,
+    btrim(i.segundo_apellido)      AS segundo_apellido
+  FROM preprod.ilc_interesado i
+  WHERE upper(btrim(i.tipo)) = 'PERSONA_JURIDICA'
+),
+viol AS (
+  SELECT
+    b.*,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN b.primer_nombre IS NOT NULL AND b.primer_nombre <> '' 
+           THEN 'Primer_Nombre debe ser NULL' END,
+      CASE WHEN b.segundo_nombre IS NOT NULL AND b.segundo_nombre <> '' 
+           THEN 'Segundo_Nombre debe ser NULL' END,
+      CASE WHEN b.primer_apellido IS NOT NULL AND b.primer_apellido <> '' 
+           THEN 'Primer_Apellido debe ser NULL' END,
+      CASE WHEN b.segundo_apellido IS NOT NULL AND b.segundo_apellido <> '' 
+           THEN 'Segundo_Apellido debe ser NULL' END
+    )) AS motivo
+  FROM base b
+  WHERE 
+    (b.primer_nombre IS NOT NULL AND b.primer_nombre <> '')
+    OR (b.segundo_nombre IS NOT NULL AND b.segundo_nombre <> '')
+    OR (b.primer_apellido IS NOT NULL AND b.primer_apellido <> '')
+    OR (b.segundo_apellido IS NOT NULL AND b.segundo_apellido <> '')
+)
+SELECT
+  '747'::text                     AS regla,
+  'ILC_Interesado'::text          AS objeto,
+  'preprod.ilc_interesado'::text  AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio           AS id_operacion,
+  NULL::varchar(30)               AS npn, -- no aplica
+  ('INCUMPLE: Persona_Jurídica → No debe tener nombres/apellidos diligenciados. '||v.motivo)::text AS descripcion,
+  (
+    'primer_nombre='||COALESCE(v.primer_nombre,'(null)')|| 
+    ', segundo_nombre='||COALESCE(v.segundo_nombre,'(null)')||
+    ', primer_apellido='||COALESCE(v.primer_apellido,'(null)')||
+    ', segundo_apellido='||COALESCE(v.segundo_apellido,'(null)')
+  )::text                         AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--- regla 730
+DROP TABLE IF EXISTS reglas.regla_730;
+
+CREATE TABLE reglas.regla_730 AS
+WITH base AS (
+  SELECT
+    d.objectid,
+    d.globalid,
+    btrim(d.id_operacion_predio)   AS id_operacion_predio,
+    upper(btrim(d.tipo))           AS tipo_derecho,
+    p.tipo                         AS tipo_predio,
+    NULLIF(btrim(p.matricula_inmobiliaria),'') AS matricula_inmobiliaria,
+    p.numero_predial_nacional      AS npn
+  FROM preprod.ilc_derecho d
+  JOIN preprod.ilc_predio p
+    ON p.id_operacion = d.id_operacion_predio
+),
+viol AS (
+  SELECT
+    b.*,
+    CASE
+      WHEN b.tipo_predio = 'Privado' AND b.tipo_derecho = 'DOMINIO' AND b.matricula_inmobiliaria IS NULL
+        THEN 'Privado + Dominio requiere Matricula_Inmobiliaria NO NULL'
+      WHEN b.tipo_derecho IN ('POSESION','OCUPACION') AND b.matricula_inmobiliaria IS NOT NULL
+        THEN 'Posesion/Ocupacion requiere Matricula_Inmobiliaria = NULL'
+    END AS motivo
+  FROM base b
+  WHERE 
+    (b.tipo_predio = 'Privado' AND b.tipo_derecho = 'DOMINIO' AND b.matricula_inmobiliaria IS NULL)
+    OR (b.tipo_derecho IN ('POSESION','OCUPACION') AND b.matricula_inmobiliaria IS NOT NULL)
+)
+SELECT
+  '730'::text                     AS regla,
+  'ILC_Derecho'::text             AS objeto,
+  'preprod.ilc_derecho'::text     AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio           AS id_operacion,
+  v.npn,
+  ('INCUMPLE: '||v.motivo)::text  AS descripcion,
+  ('tipo_predio='||COALESCE(v.tipo_predio,'(null)')||
+   ', tipo_derecho='||COALESCE(v.tipo_derecho,'(null)')||
+   ', matricula_inmobiliaria='||COALESCE(v.matricula_inmobiliaria,'(null)')
+  )::text                         AS valor,
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--748
+DROP TABLE IF EXISTS reglas.regla_748;
+
+CREATE TABLE reglas.regla_748 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    i.tipo,
+    btrim(i.primer_nombre)       AS primer_nombre,
+    btrim(i.segundo_nombre)      AS segundo_nombre,
+    btrim(i.primer_apellido)     AS primer_apellido,
+    btrim(i.segundo_apellido)    AS segundo_apellido
+  FROM preprod.ilc_interesado i
+  WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
+),
+viol AS (
+  SELECT
+    b.*,
+    ARRAY_REMOVE(ARRAY[
+      CASE WHEN upper(b.primer_nombre)   LIKE '%SUC%' THEN 'primer_nombre contiene SUC' END,
+      CASE WHEN upper(b.segundo_nombre)  LIKE '%SUC%' THEN 'segundo_nombre contiene SUC' END,
+      CASE WHEN upper(b.primer_apellido) LIKE '%SUC%' THEN 'primer_apellido contiene SUC' END,
+      CASE WHEN upper(b.segundo_apellido)LIKE '%SUC%' THEN 'segundo_apellido contiene SUC' END
+    ], NULL) AS motivos
+  FROM base b
+)
+SELECT
+  '748'::text AS regla,
+  'ILC_Interesado'::text AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio,
+  NULL::varchar(30) AS npn,
+  ('INCUMPLE: Persona_Natural con nombres/apellidos que contienen "SUC".')::text AS descripcion,
+  array_to_string(v.motivos, ', ')::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM viol v
+WHERE array_length(v.motivos,1) > 0
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--749
+DROP TABLE IF EXISTS reglas.regla_749;
+
+CREATE TABLE reglas.regla_749 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    upper(btrim(i.tipo)) AS tipo,
+    i.primer_nombre,
+    i.segundo_nombre,
+    i.primer_apellido,
+    i.segundo_apellido,
+    btrim(i.razon_social) AS razon_social
+  FROM preprod.ilc_interesado i
+)
+, viol AS (
+  SELECT
+    b.*,
+    ARRAY_REMOVE(ARRAY[
+      CASE WHEN b.tipo = 'PERSONA_JURIDICA' AND b.primer_nombre IS NOT NULL 
+           THEN 'primer_nombre='   || COALESCE(b.primer_nombre,'(null)') END,
+      CASE WHEN b.tipo = 'PERSONA_JURIDICA' AND b.segundo_nombre IS NOT NULL 
+           THEN 'segundo_nombre='  || COALESCE(b.segundo_nombre,'(null)') END,
+      CASE WHEN b.tipo = 'PERSONA_JURIDICA' AND b.primer_apellido IS NOT NULL 
+           THEN 'primer_apellido=' || COALESCE(b.primer_apellido,'(null)') END,
+      CASE WHEN b.tipo = 'PERSONA_JURIDICA' AND b.segundo_apellido IS NOT NULL 
+           THEN 'segundo_apellido='|| COALESCE(b.segundo_apellido,'(null)') END,
+      CASE WHEN b.tipo = 'PERSONA_JURIDICA' AND (b.razon_social IS NULL OR b.razon_social = '') 
+           THEN 'razon_social='    || COALESCE(b.razon_social,'(null)') END
+    ], NULL) AS motivos
+  FROM base b
+  WHERE b.tipo = 'PERSONA_JURIDICA'
+)
+SELECT
+  '749'::text AS regla,
+  'ILC_Interesado'::text AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio,
+  NULL::varchar(30) AS npn,
+  'INCUMPLE: Persona_Juridica debe tener solo razon_social y no nombres/apellidos'::text AS descripcion,
+  ('tipo='||v.tipo||' | '||array_to_string(v.motivos, ', '))::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM viol v
+WHERE array_length(v.motivos,1) > 0
+ORDER BY v.id_operacion_predio, v.objectid;
 
 
+--750
+DROP TABLE IF EXISTS reglas.regla_750;
 
---///////////////////////////////////////////////////////////////////////////////////////////////////////////////
---///////////////////////////////////////////////////////////////////////////////////////////////////////////////
+CREATE TABLE reglas.regla_750 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    upper(btrim(i.tipo)) AS tipo,
+    btrim(i.sexo) AS sexo
+  FROM preprod.ilc_interesado i
+)
+, viol AS (
+  SELECT
+    b.*,
+    CASE 
+      WHEN b.sexo IS NOT NULL AND b.tipo <> 'PERSONA_NATURAL'
+      THEN 'Sexo='||COALESCE(b.sexo,'(null)')||', Tipo='||COALESCE(b.tipo,'(null)')
+    END AS motivo
+  FROM base b
+  WHERE b.sexo IS NOT NULL
+    AND b.tipo <> 'PERSONA_NATURAL'
+)
+SELECT
+  '750'::text AS regla,
+  'ILC_Interesado'::text AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio,
+  NULL::varchar(30) AS npn,
+  'INCUMPLE: Si Sexo está diligenciado entonces Tipo debe ser Persona_Natural'::text AS descripcion,
+  ('tipo='||v.tipo||' | sexo='||COALESCE(v.sexo,'(null)'))::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM viol v
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--751
+DROP TABLE IF EXISTS reglas.regla_751;
+
+CREATE TABLE reglas.regla_751 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    upper(btrim(i.tipo))         AS tipo,
+    btrim(i.primer_nombre)       AS primer_nombre,
+    btrim(i.segundo_nombre)      AS segundo_nombre,
+    btrim(i.primer_apellido)     AS primer_apellido,
+    btrim(i.segundo_apellido)    AS segundo_apellido
+  FROM preprod.ilc_interesado i
+  WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
+),
+norm AS (
+  -- Normaliza cada campo: a MAYÚSCULAS, quita . , & - por espacios y colapsa espacios
+  SELECT
+    b.*,
+    upper(btrim(b.primer_nombre))  AS pn_raw,
+    upper(btrim(b.segundo_nombre)) AS sn_raw,
+    upper(btrim(b.primer_apellido)) AS pa_raw,
+    upper(btrim(b.segundo_apellido)) AS sa_raw,
+    -- versión normalizada con signos reemplazados por espacio y espacios colapsados
+    ' '||regexp_replace(regexp_replace(coalesce(upper(b.primer_nombre),''), '[\.\,&\-]', ' ', 'g'), '\s+', ' ', 'g')||' ' AS pn_norm,
+    ' '||regexp_replace(regexp_replace(coalesce(upper(b.segundo_nombre),''),'[\.\,&\-]',' ','g'), '\s+', ' ', 'g')||' ' AS sn_norm,
+    ' '||regexp_replace(regexp_replace(coalesce(upper(b.primer_apellido),''),'[\.\,&\-]',' ','g'), '\s+', ' ', 'g')||' ' AS pa_norm,
+    ' '||regexp_replace(regexp_replace(coalesce(upper(b.segundo_apellido),''),'[\.\,&\-]',' ','g'), '\s+', ' ', 'g')||' ' AS sa_norm
+  FROM base b
+),
+flag AS (
+  -- Tokens prohibidos: LTDA, SA, SCA, SAS, EN C, CIA
+  -- (S.A., S.C.A., S.A.S., & Cia, EN C. se vuelven SA/SCA/SAS/CIA/EN C tras normalizar)
+  SELECT
+    n.*,
+    -- Primer Nombre
+    (position(' LTDA ' IN n.pn_norm) > 0) AS pn_has_ltda,
+    (position(' SA '   IN n.pn_norm) > 0) AS pn_has_sa,
+    (position(' SCA '  IN n.pn_norm) > 0) AS pn_has_sca,
+    (position(' SAS '  IN n.pn_norm) > 0) AS pn_has_sas,
+    (position(' EN C ' IN n.pn_norm) > 0) AS pn_has_enc,
+    (position(' CIA '  IN n.pn_norm) > 0) AS pn_has_cia,
+
+    -- Segundo Nombre
+    (position(' LTDA ' IN n.sn_norm) > 0) AS sn_has_ltda,
+    (position(' SA '   IN n.sn_norm) > 0) AS sn_has_sa,
+    (position(' SCA '  IN n.sn_norm) > 0) AS sn_has_sca,
+    (position(' SAS '  IN n.sn_norm) > 0) AS sn_has_sas,
+    (position(' EN C ' IN n.sn_norm) > 0) AS sn_has_enc,
+    (position(' CIA '  IN n.sn_norm) > 0) AS sn_has_cia,
+
+    -- Primer Apellido
+    (position(' LTDA ' IN n.pa_norm) > 0) AS pa_has_ltda,
+    (position(' SA '   IN n.pa_norm) > 0) AS pa_has_sa,
+    (position(' SCA '  IN n.pa_norm) > 0) AS pa_has_sca,
+    (position(' SAS '  IN n.pa_norm) > 0) AS pa_has_sas,
+    (position(' EN C ' IN n.pa_norm) > 0) AS pa_has_enc,
+    (position(' CIA '  IN n.pa_norm) > 0) AS pa_has_cia,
+
+    -- Segundo Apellido
+    (position(' LTDA ' IN n.sa_norm) > 0) AS sa_has_ltda,
+    (position(' SA '   IN n.sa_norm) > 0) AS sa_has_sa,
+    (position(' SCA '  IN n.sa_norm) > 0) AS sa_has_sca,
+    (position(' SAS '  IN n.sa_norm) > 0) AS sa_has_sas,
+    (position(' EN C ' IN n.sa_norm) > 0) AS sa_has_enc,
+    (position(' CIA '  IN n.sa_norm) > 0) AS sa_has_cia
+  FROM norm n
+),
+viol AS (
+  -- Construye lista de motivos "campo contiene TOKEN" con su valor original
+  SELECT
+    f.*,
+    ARRAY_REMOVE(ARRAY[
+      CASE WHEN pn_has_ltda THEN 'primer_nombre contiene LTDA (valor='||coalesce(f.primer_nombre,'(null)')||')' END,
+      CASE WHEN pn_has_sa   THEN 'primer_nombre contiene SA (valor='  ||coalesce(f.primer_nombre,'(null)')||')' END,
+      CASE WHEN pn_has_sca  THEN 'primer_nombre contiene SCA (valor=' ||coalesce(f.primer_nombre,'(null)')||')' END,
+      CASE WHEN pn_has_sas  THEN 'primer_nombre contiene SAS (valor=' ||coalesce(f.primer_nombre,'(null)')||')' END,
+      CASE WHEN pn_has_enc  THEN 'primer_nombre contiene EN C (valor='||coalesce(f.primer_nombre,'(null)')||')' END,
+      CASE WHEN pn_has_cia  THEN 'primer_nombre contiene CIA (valor=' ||coalesce(f.primer_nombre,'(null)')||')' END,
+
+      CASE WHEN sn_has_ltda THEN 'segundo_nombre contiene LTDA (valor='||coalesce(f.segundo_nombre,'(null)')||')' END,
+      CASE WHEN sn_has_sa   THEN 'segundo_nombre contiene SA (valor='  ||coalesce(f.segundo_nombre,'(null)')||')' END,
+      CASE WHEN sn_has_sca  THEN 'segundo_nombre contiene SCA (valor=' ||coalesce(f.segundo_nombre,'(null)')||')' END,
+      CASE WHEN sn_has_sas  THEN 'segundo_nombre contiene SAS (valor=' ||coalesce(f.segundo_nombre,'(null)')||')' END,
+      CASE WHEN sn_has_enc  THEN 'segundo_nombre contiene EN C (valor='||coalesce(f.segundo_nombre,'(null)')||')' END,
+      CASE WHEN sn_has_cia  THEN 'segundo_nombre contiene CIA (valor=' ||coalesce(f.segundo_nombre,'(null)')||')' END,
+
+      CASE WHEN pa_has_ltda THEN 'primer_apellido contiene LTDA (valor='||coalesce(f.primer_apellido,'(null)')||')' END,
+      CASE WHEN pa_has_sa   THEN 'primer_apellido contiene SA (valor='  ||coalesce(f.primer_apellido,'(null)')||')' END,
+      CASE WHEN pa_has_sca  THEN 'primer_apellido contiene SCA (valor=' ||coalesce(f.primer_apellido,'(null)')||')' END,
+      CASE WHEN pa_has_sas  THEN 'primer_apellido contiene SAS (valor=' ||coalesce(f.primer_apellido,'(null)')||')' END,
+      CASE WHEN pa_has_enc  THEN 'primer_apellido contiene EN C (valor='||coalesce(f.primer_apellido,'(null)')||')' END,
+      CASE WHEN pa_has_cia  THEN 'primer_apellido contiene CIA (valor=' ||coalesce(f.primer_apellido,'(null)')||')' END,
+
+      CASE WHEN sa_has_ltda THEN 'segundo_apellido contiene LTDA (valor='||coalesce(f.segundo_apellido,'(null)')||')' END,
+      CASE WHEN sa_has_sa   THEN 'segundo_apellido contiene SA (valor='  ||coalesce(f.segundo_apellido,'(null)')||')' END,
+      CASE WHEN sa_has_sca  THEN 'segundo_apellido contiene SCA (valor=' ||coalesce(f.segundo_apellido,'(null)')||')' END,
+      CASE WHEN sa_has_sas  THEN 'segundo_apellido contiene SAS (valor=' ||coalesce(f.segundo_apellido,'(null)')||')' END,
+      CASE WHEN sa_has_enc  THEN 'segundo_apellido contiene EN C (valor='||coalesce(f.segundo_apellido,'(null)')||')' END,
+      CASE WHEN sa_has_cia  THEN 'segundo_apellido contiene CIA (valor=' ||coalesce(f.segundo_apellido,'(null)')||')' END
+    ], NULL) AS motivos
+  FROM flag f
+)
+SELECT
+  '751'::text                     AS regla,
+  'ILC_Interesado'::text          AS objeto,
+  'preprod.ilc_interesado'::text  AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio           AS id_operacion,
+  NULL::varchar(30)               AS npn,  -- no aplica
+  'INCUMPLE: Persona_Natural no debe contener marcas societarias (LTDA, SA, SCA, SAS, EN C, CIA) en nombres/apellidos.'::text AS descripcion,
+  array_to_string(v.motivos, ', ')::text   AS valor,  -- lista "campo contiene TOKEN (valor=...)"
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+WHERE array_length(v.motivos,1) > 0
+ORDER BY v.id_operacion_predio, v.objectid;
+
+
+--757
+-- Reglas:
+--  1) Tipo = 'Escritura pública'   -> Ente_Emisor debe contener "Notaría"
+--  2) Tipo = 'Sentencia_judicial'  -> Ente_Emisor debe contener "Juzgado" o "Tribunal"
+--  3) Tipo = 'Acto_Administrativo' -> Ente_Emisor debe contener "Alcaldía" o "ANT" o "INCODER" o "INCORA" o "Ministerio" o "Juzgado" o "Tribunal"
+
+DROP TABLE IF EXISTS reglas.regla_752;
+
+CREATE TABLE reglas.regla_752 AS
+WITH base AS (
+  SELECT
+    f.objectid,
+    f.globalid,
+    btrim(f.id_operacion_predio)             AS id_operacion_predio,
+    btrim(f.tipo)                             AS tipo_raw,
+    btrim(f.ente_emisor)                      AS ente_raw,
+    upper(btrim(f.tipo))                      AS tipo_norm,
+    upper(btrim(f.ente_emisor))               AS ente_norm,
+    -- Para detectar 'ANT' como palabra y evitar falsos positivos tipo 'ANTONIO'
+    (' '||upper(btrim(f.ente_emisor))||' ')   AS ente_padded
+  FROM preprod.ilc_fuenteadministrativa f
+),
+marcados AS (
+  SELECT
+    b.*,
+    -- Qué tipos nos interesan (normalizados a mayúsculas)
+    (b.tipo_norm IN ('ESCRITURA PUBLICA','ESCRITURA_PÚBLICA','ESCRITURA_PUBLICA','ESCRITURA PÚBLICA')) AS es_escritura,
+    (b.tipo_norm IN ('SENTENCIA_JUDICIAL','SENTENCIA JUDICIAL'))                                         AS es_sentencia,
+    (b.tipo_norm IN ('ACTO_ADMINISTRATIVO','ACTO ADMINISTRATIVO'))                                       AS es_acto,
+
+    -- Chequeos de contenido (case-insensitive por estar en upper):
+    -- Escritura: debe tener 'NOTAR' (cubre NOTARIA / NOTARÍA)
+    (b.ente_norm LIKE '%NOTAR%') AS ok_escritura,
+
+    -- Sentencia: 'JUZGAD' o 'TRIBUN'
+    (b.ente_norm LIKE '%JUZGAD%' OR b.ente_norm LIKE '%TRIBUN%') AS ok_sentencia,
+
+    -- Acto: ALCALD | ANT (como palabra) | INCODER | INCORA | MINISTER | JUZGAD | TRIBUN
+    (
+      b.ente_norm LIKE '%ALCALD%'
+      OR b.ente_padded LIKE '% ANT %'
+      OR b.ente_norm LIKE '%INCODER%'
+      OR b.ente_norm LIKE '%INCORA%'
+      OR b.ente_norm LIKE '%MINISTER%'
+      OR b.ente_norm LIKE '%JUZGAD%'
+      OR b.ente_norm LIKE '%TRIBUN%'
+    ) AS ok_acto
+  FROM base b
+),
+viol AS (
+  SELECT
+    m.*,
+    CASE
+      WHEN m.es_escritura AND (m.ente_raw IS NULL OR m.ente_raw = '' OR NOT m.ok_escritura)
+        THEN 'Tipo=Escritura pública → Ente_Emisor debe contener "Notaría"'
+      WHEN m.es_sentencia AND (m.ente_raw IS NULL OR m.ente_raw = '' OR NOT m.ok_sentencia)
+        THEN 'Tipo=Sentencia_judicial → Ente_Emisor debe contener "Juzgado" o "Tribunal"'
+      WHEN m.es_acto AND (m.ente_raw IS NULL OR m.ente_raw = '' OR NOT m.ok_acto)
+        THEN 'Tipo=Acto_Administrativo → Ente_Emisor debe contener "Alcaldía", "ANT", "INCODER", "INCORA", "Ministerio", "Juzgado" o "Tribunal"'
+    END AS motivo
+  FROM marcados m
+)
+SELECT
+  '752'::text                         AS regla,
+  'ILC_FuenteAdministrativa'::text    AS objeto,
+  'preprod.ilc_fuenteadministrativa'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio               AS id_operacion,
+  NULL::varchar(30)                   AS npn,   -- no aplica aquí
+  ('INCUMPLE: '||v.motivo)::text      AS descripcion,
+  (
+    'tipo='||COALESCE(v.tipo_raw,'(null)')||
+    ', ente_emisor='||COALESCE(v.ente_raw,'(null)')
+  )::text                             AS valor,
+  FALSE                                AS cumple,
+  NOW()                                AS created_at,
+  NOW()                                AS updated_at
+FROM viol v
+WHERE v.motivo IS NOT NULL   -- solo incumplidos
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--731
+DROP TABLE IF EXISTS reglas.regla_731;
+
+CREATE TABLE reglas.regla_731 AS
+WITH base AS (
+    SELECT
+        d.objectid,
+        d.globalid,
+        btrim(d.id_operacion_predio)   AS id_operacion_predio,
+        btrim(lower(d.tipo))           AS derecho_tipo,
+        btrim(lower(p.tipo))           AS predio_tipo
+    FROM preprod.ilc_derecho d
+    JOIN preprod.ilc_predio p
+      ON p.id_operacion = d.id_operacion_predio
+    WHERE lower(btrim(d.tipo)) = 'posesion'
+),
+viol AS (
+    SELECT
+        b.*,
+        CASE 
+          WHEN b.predio_tipo IS NULL OR b.predio_tipo <> 'privado'
+            THEN 'ILC_Derecho.Tipo=Posesion → ILC_Predio.Tipo debe ser "Privado"'
+        END AS motivo
+    FROM base b
+)
+SELECT
+    '731'::text                       AS regla,
+    'ILC_Derecho'::text               AS objeto,
+    'preprod.ilc_derecho'::text       AS tabla,
+    v.objectid,
+    v.globalid,
+    v.id_operacion_predio             AS id_operacion,
+    NULL::varchar(30)                 AS npn, -- no aplica aquí
+    ('INCUMPLE: '||v.motivo)::text    AS descripcion,
+    (
+      'derecho_tipo='||COALESCE(v.derecho_tipo,'(null)')||
+      ', predio_tipo='||COALESCE(v.predio_tipo,'(null)')
+    )::text                           AS valor,
+    FALSE                             AS cumple,
+    NOW()                             AS created_at,
+    NOW()                             AS updated_at
+FROM viol v
+WHERE v.motivo IS NOT NULL
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--758
+DROP TABLE IF EXISTS reglas.regla_758;
+
+CREATE TABLE reglas.regla_758 AS
+WITH base AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)        AS id_operacion_predio,
+    p.numero_predial_nacional    AS npn
+  FROM preprod.ilc_predio p
+),
+agg AS (
+  SELECT
+    b.objectid,
+    b.globalid,
+    b.id_operacion_predio,
+    b.npn,
+    COUNT(i.objectid) AS n_interesados
+  FROM base b
+  LEFT JOIN preprod.ilc_interesado i
+    ON b.id_operacion_predio = btrim(i.id_operacion_predio)
+  GROUP BY b.objectid, b.globalid, b.id_operacion_predio, b.npn
+)
+SELECT
+  '758'::text                   AS regla,
+  'ILC_Predio'::text           AS objeto,
+  'preprod.ilc_predio'::text   AS tabla,
+  a.objectid,
+  a.globalid,
+  a.id_operacion_predio        AS id_operacion,
+  a.npn,
+  'INCUMPLE: Todo ILC_Predio debe relacionar al menos un ILC_Interesado'::text AS descripcion,
+  ('n_interesados='||a.n_interesados||', npn='||COALESCE(a.npn,'(null)'))::text AS valor,
+  FALSE                        AS cumple,
+  NOW()                        AS created_at,
+  NOW()                        AS updated_at
+FROM agg a
+WHERE a.n_interesados = 0
+ORDER BY a.id_operacion_predio, a.objectid;
+
+--759
+
+DROP TABLE IF EXISTS reglas.regla_759;
+
+CREATE TABLE reglas.regla_759 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    NULLIF(btrim(i.primer_nombre),'')     AS primer_nombre,
+    NULLIF(btrim(i.segundo_nombre),'')    AS segundo_nombre,
+    NULLIF(btrim(i.primer_apellido),'')   AS primer_apellido,
+    NULLIF(btrim(i.segundo_apellido),'')  AS segundo_apellido,
+    NULLIF(btrim(i.razon_social),'')      AS razon_social,
+    NULLIF(btrim(i.documento_identidad),'') AS documento_identidad
+  FROM preprod.ilc_interesado i
+),
+-- Agrupo por combinación de nombres y razón social
+agrupado AS (
+  SELECT
+    COALESCE(primer_nombre,'')   AS primer_nombre,
+    COALESCE(segundo_nombre,'')  AS segundo_nombre,
+    COALESCE(primer_apellido,'') AS primer_apellido,
+    COALESCE(segundo_apellido,'')AS segundo_apellido,
+    COALESCE(razon_social,'')    AS razon_social,
+    COUNT(DISTINCT documento_identidad)   AS n_docs,
+    ARRAY_AGG(DISTINCT documento_identidad) AS docs_distintos,
+    ARRAY_AGG(DISTINCT id_operacion_predio) AS predios
+  FROM base
+  GROUP BY primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, razon_social
+  HAVING COUNT(DISTINCT documento_identidad) > 1
+)
+SELECT
+  '759'::text AS regla,
+  'ILC_Interesado'::text AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  NULL::bigint AS objectid,
+  NULL::uuid   AS globalid,
+  NULL::text   AS id_operacion,
+  NULL::text   AS npn,
+  (
+    'INCUMPLE: Existen '||a.n_docs||' documentos diferentes asociados a mismos nombres/razón social'
+  )::text AS descripcion,
+  (
+    'Nombres='||
+    COALESCE(NULLIF(a.primer_nombre,''),'(null)')||' '||
+    COALESCE(NULLIF(a.segundo_nombre,''),'')||' '||
+    COALESCE(NULLIF(a.primer_apellido,''),'')||' '||
+    COALESCE(NULLIF(a.segundo_apellido,''),'')||
+    ', Razon_Social='||COALESCE(NULLIF(a.razon_social,''),'(null)')||
+    ', Docs='||array_to_string(a.docs_distintos, ',')||
+    ', Predios='||array_to_string(a.predios, ',')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW()  AS created_at,
+  NOW()  AS updated_at
+FROM agrupado a;
+
+--760
+DROP TABLE IF EXISTS reglas.regla_756;
+
+CREATE TABLE reglas.regla_756 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    NULLIF(btrim(i.documento_identidad),'') AS documento_identidad
+  FROM preprod.ilc_interesado i
+),
+duplicados AS (
+  SELECT
+    documento_identidad,
+    COUNT(*) AS n_veces,
+    ARRAY_AGG(objectid) AS objetos,
+    ARRAY_AGG(globalid) AS globales,
+    ARRAY_AGG(id_operacion_predio) AS predios
+  FROM base
+  WHERE documento_identidad IS NOT NULL
+  GROUP BY documento_identidad
+  HAVING COUNT(*) > 1
+)
+SELECT
+  '756'::text AS regla,
+  'ILC_Interesado'::text AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  NULL::bigint AS objectid,
+  NULL::uuid   AS globalid,
+  NULL::text   AS id_operacion,
+  NULL::text   AS npn,
+  ('INCUMPLE: Documento_Identidad duplicado, aparece '||d.n_veces||' veces')::text AS descripcion,
+  ('Documento_Identidad='||d.documento_identidad||
+   ', ObjectIDs='||array_to_string(d.objetos, ',')||
+   ', GlobalIDs='||array_to_string(d.globales, ',')||
+   ', Predios='||array_to_string(d.predios, ',')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM duplicados d;
+
+--761
+DROP TABLE IF EXISTS reglas.regla_761;
+
+CREATE TABLE reglas.regla_761 AS
+WITH base AS (
+  SELECT
+    i.objectid,
+    i.globalid,
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    NULLIF(btrim(i.grupo_etnico),'') AS grupo_etnico,
+    NULLIF(btrim(i.nombre_pueblo),'') AS nombre_pueblo
+  FROM preprod.ilc_interesado i
+),
+viol AS (
+  SELECT
+    b.*,
+    (b.grupo_etnico = 'Etnico.Indigena' AND b.nombre_pueblo IS NOT NULL) AS ok_regla,
+    CASE 
+      WHEN b.grupo_etnico = 'Etnico.Indigena' AND b.nombre_pueblo IS NULL 
+        THEN 'Grupo_Etnico=Indigena pero Nombre_Pueblo es NULL o vacío'
+    END AS motivo
+  FROM base b
+)
+SELECT
+  '761'::text AS regla,
+  'ILC_Interesado'::text AS objeto,
+  'preprod.ilc_interesado'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio,
+  NULL::text AS npn,
+  ('INCUMPLE: Grupo_Etnico=Indigena → Nombre_Pueblo obligatorio. '||v.motivo)::text AS descripcion,
+  ('Grupo_Etnico='||COALESCE(v.grupo_etnico,'(null)')||
+   ', Nombre_Pueblo='||COALESCE(v.nombre_pueblo,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM viol v
+WHERE NOT v.ok_regla
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--732
+
+DROP TABLE IF EXISTS reglas.regla_732;
+
+CREATE TABLE reglas.regla_732 AS
+WITH base AS (
+  SELECT
+    d.objectid,
+    d.globalid,
+    btrim(d.id_operacion_predio) AS id_operacion_predio,
+    lower(btrim(d.tipo)) AS derecho_tipo,
+    lower(btrim(p.tipo)) AS predio_tipo
+  FROM preprod.ilc_derecho d
+  JOIN preprod.ilc_predio p
+    ON p.id_operacion = d.id_operacion_predio
+),
+viol AS (
+  SELECT
+    b.*,
+    NOT (b.predio_tipo = 'privado' AND b.derecho_tipo = 'ocupacion') AS ok_regla,
+    CASE 
+      WHEN b.predio_tipo = 'privado' AND b.derecho_tipo = 'ocupacion'
+        THEN 'Predio.Tipo=Privado pero Derecho.Tipo=Ocupacion'
+    END AS motivo
+  FROM base b
+)
+SELECT
+  '732'::text AS regla,
+  'ILC_Derecho'::text AS objeto,
+  'preprod.ilc_derecho'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio,
+  NULL::text AS npn,
+  ('INCUMPLE: Si Predio.Tipo=Privado → Derecho.Tipo≠Ocupacion. '||v.motivo)::text AS descripcion,
+  ('Predio.Tipo='||COALESCE(v.predio_tipo,'(null)')||
+   ', Derecho.Tipo='||COALESCE(v.derecho_tipo,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM viol v
+WHERE NOT v.ok_regla
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--733
+DROP TABLE IF EXISTS reglas.regla_733;
+
+CREATE TABLE reglas.regla_733 AS
+WITH base AS (
+  SELECT
+    d.objectid,
+    d.globalid,
+    btrim(d.id_operacion_predio) AS id_operacion_predio,
+    lower(btrim(d.tipo)) AS derecho_tipo,
+    lower(btrim(p.tipo)) AS predio_tipo
+  FROM preprod.ilc_derecho d
+  JOIN preprod.ilc_predio p
+    ON p.id_operacion = d.id_operacion_predio
+),
+viol AS (
+  SELECT
+    b.*,
+    NOT (
+      b.predio_tipo LIKE 'publico%' 
+      AND b.derecho_tipo = 'posesion'
+    ) AS ok_regla,
+    CASE 
+      WHEN b.predio_tipo LIKE 'publico%' AND b.derecho_tipo = 'posesion'
+        THEN 'Predio.Tipo='||b.predio_tipo||' pero Derecho.Tipo=Posesion'
+    END AS motivo
+  FROM base b
+)
+SELECT
+  '733'::text AS regla,
+  'ILC_Derecho'::text AS objeto,
+  'preprod.ilc_derecho'::text AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio,
+  NULL::text AS npn,
+  ('INCUMPLE: Predio.Tipo=Publico → Derecho.Tipo≠Posesion. '||v.motivo)::text AS descripcion,
+  ('Predio.Tipo='||COALESCE(v.predio_tipo,'(null)')||
+   ', Derecho.Tipo='||COALESCE(v.derecho_tipo,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM viol v
+WHERE NOT v.ok_regla
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--374
+
+DROP TABLE IF EXISTS reglas.regla_734;
+
+CREATE TABLE reglas.regla_734 AS
+WITH dpr AS (
+  SELECT
+    d.objectid,
+    d.globalid,
+    btrim(d.id_operacion_predio)                                 AS id_operacion_predio,
+    lower(btrim(d.tipo))                                          AS derecho_tipo,
+    btrim(p.tipo)                                                 AS predio_tipo_raw,
+    -- normaliza tipo de predio: mayúsc/minúsc y reemplaza . y espacios por _
+    lower(regexp_replace(btrim(p.tipo), '[\.\s]+', '_', 'g'))     AS predio_tipo_norm
+  FROM preprod.ilc_derecho d
+  JOIN preprod.ilc_predio p
+    ON p.id_operacion = d.id_operacion_predio
+  WHERE lower(btrim(d.tipo)) = 'dominio'
+),
+int_rs AS (
+  SELECT
+    btrim(i.id_operacion_predio) AS id_operacion_predio,
+    -- juntamos todas las razones sociales por predio para informar
+    string_agg(btrim(i.razon_social), ' | ' ORDER BY btrim(i.razon_social)) AS razones_sociales_raw,
+    -- bandera: ¿hay alguna razón social aceptada?
+    bool_or(
+      lower(i.razon_social) LIKE '%la nación%' OR
+      lower(i.razon_social) LIKE '%la nacion%' OR
+      lower(i.razon_social) LIKE '%municipio%' OR
+      lower(i.razon_social) LIKE '%agencia nacional de tierras%'
+    ) AS tiene_rs_valida
+  FROM preprod.ilc_interesado i
+  GROUP BY btrim(i.id_operacion_predio)
+),
+base AS (
+  SELECT
+    d.*,
+    coalesce(r.razones_sociales_raw, '(sin interesados)') AS razones_sociales_raw,
+    coalesce(r.tiene_rs_valida, FALSE)                   AS tiene_rs_valida
+  FROM dpr d
+  LEFT JOIN int_rs r
+    ON r.id_operacion_predio = d.id_operacion_predio
+),
+viol AS (
+  SELECT
+    b.*,
+    -- aplica la regla solo para los tipos públicos indicados
+    (b.predio_tipo_norm IN ('publico_baldio','publico_presunto_baldio','publico_baldio_reserva_indigena')) AS aplica_regla,
+    CASE
+      WHEN b.predio_tipo_norm IN ('publico_baldio','publico_presunto_baldio','publico_baldio_reserva_indigena')
+           AND b.tiene_rs_valida = FALSE
+      THEN 'Predio público (baldío/presunto/reserva indígena) con Derecho=Dominio sin RS válida (La Nación/Municipio/Agencia Nacional de Tierras)'
+    END AS motivo
+  FROM base b
+)
+SELECT
+  '734'::text                      AS regla,
+  'ILC_Interesado'::text           AS objeto,
+  'preprod.ilc_interesado'::text   AS tabla,
+  v.objectid,
+  v.globalid,
+  v.id_operacion_predio            AS id_operacion,
+  NULL::text                       AS npn,
+  ('INCUMPLE: '||v.motivo)::text   AS descripcion,
+  (
+    'predio_tipo='||COALESCE(v.predio_tipo_raw,'(null)')||
+    ', derecho_tipo='||COALESCE(v.derecho_tipo,'(null)')||
+    ', razones_sociales='||COALESCE(v.razones_sociales_raw,'(null)')
+  )::text                          AS valor,
+  FALSE                            AS cumple,
+  NOW()                            AS created_at,
+  NOW()                            AS updated_at
+FROM viol v
+WHERE v.aplica_regla = TRUE
+  AND v.motivo IS NOT NULL            -- solo incumplidos
+ORDER BY v.id_operacion_predio, v.objectid;
+
+--737
+DROP TABLE IF EXISTS reglas.regla_737;
+
+CREATE TABLE reglas.regla_737 AS
+WITH dpr AS (
+    SELECT
+        d.objectid,
+        d.globalid,
+        btrim(d.id_operacion_predio) AS id_operacion_predio,
+        lower(btrim(d.tipo))         AS derecho_tipo,
+        btrim(p.tipo)                AS predio_tipo
+    FROM preprod.ilc_derecho d
+    JOIN preprod.ilc_predio p
+      ON p.id_operacion = d.id_operacion_predio
+    WHERE lower(btrim(d.tipo)) = 'dominio'
+      AND p.tipo IN ('Publico_Fiscal_Patrimonial','Publico_Uso_Publico')
+),
+ints AS (
+    SELECT
+        i.id_operacion_predio,
+        string_agg(
+            coalesce(i.tipo,'(null)')||'/'||coalesce(i.documento_identidad,''),
+            ' | ' ORDER BY i.objectid
+        ) AS interesados_raw,
+        bool_or(lower(btrim(i.tipo)) <> 'persona_juridica') AS hay_invalido
+    FROM preprod.ilc_interesado i
+    GROUP BY i.id_operacion_predio
+),
+base AS (
+    SELECT
+        d.*,
+        coalesce(i.interesados_raw,'(sin interesados)') AS interesados_raw,
+        coalesce(i.hay_invalido,FALSE)                  AS hay_invalido
+    FROM dpr d
+    LEFT JOIN ints i ON i.id_operacion_predio = d.id_operacion_predio
+)
+SELECT
+    '737'::text                    AS regla,
+    'ILC_Interesado'::text         AS objeto,
+    'preprod.ilc_interesado'::text AS tabla,
+    b.objectid,
+    b.globalid,
+    b.id_operacion_predio          AS id_operacion,
+    NULL::text                     AS npn,
+    ('INCUMPLE: Predio '||b.predio_tipo||' + Derecho=Dominio debe tener interesados Persona_Juridica')::text AS descripcion,
+    (
+      'predio_tipo='||COALESCE(b.predio_tipo,'(null)')||
+      ', derecho_tipo='||COALESCE(b.derecho_tipo,'(null)')||
+      ', interesados='||COALESCE(b.interesados_raw,'(null)')
+    )::text                        AS valor,
+    FALSE                          AS cumple,
+    NOW()                          AS created_at,
+    NOW()                          AS updated_at
+FROM base b
+WHERE b.hay_invalido = TRUE
+ORDER BY b.id_operacion_predio, b.objectid;
