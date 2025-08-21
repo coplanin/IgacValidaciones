@@ -2890,3 +2890,688 @@ SELECT
 FROM base b
 WHERE b.hay_invalido = TRUE
 ORDER BY b.id_operacion_predio, b.objectid;
+
+--762
+-- REGLA 762 - INCUMPLIDOS
+-- PH_Unidad_Predial o Informal con NPN pos22='2' y pos27-30<>'0000'
+-- Deben tener ≥1 UC válida (≠ parqueadero/garaje descubierto y ≠ no construida) NO SE OCMO ESTABLECER ESTO
+
+DROP TABLE IF EXISTS reglas.regla_762_incumple;
+
+CREATE TABLE reglas.regla_762_incumple AS
+WITH predios AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    lower(btrim(p.condicion_predio))              AS condicion,
+    p.numero_predial_nacional                     AS npn,
+    regexp_replace(p.numero_predial_nacional, '\D', '', 'g') AS npn_digits
+  FROM preprod.ilc_predio p
+),
+predios_objetivo AS (
+  SELECT
+    objectid, globalid, id_operacion, condicion, npn, npn_digits,
+    substring(npn_digits FROM 22 FOR 1) AS s22,
+    substring(npn_digits FROM 27 FOR 4) AS s27_30
+  FROM predios
+  WHERE condicion IN ('ph_unidad_predial','ph.unidad_predial','informal')
+    AND length(npn_digits) = 30
+    AND substring(npn_digits FROM 22 FOR 1) = '2'
+    AND substring(npn_digits FROM 27 FOR 4) <> '0000'
+),
+uc AS (   -- leemos TODA la UC como texto (robusto)
+  SELECT
+    btrim(u.id_operacion_predio) AS id_operacion,
+    lower(to_json(u)::text)      AS uc_txt
+  FROM preprod.cr_unidadconstruccion u
+),
+uc_agg AS (  -- contamos UC válidas por predio
+  SELECT
+    po.id_operacion,
+    COUNT(*) FILTER (
+      WHERE uc.uc_txt IS NOT NULL
+        AND NOT (
+          (uc.uc_txt LIKE '%parqueadero%' AND uc.uc_txt LIKE '%descub%') OR
+          (uc.uc_txt LIKE '%garaje%'      AND uc.uc_txt LIKE '%descub%') OR
+          (uc.uc_txt LIKE '%no construid%')   -- "no construida/no construido"
+        )
+    ) AS n_uc_validas,
+    string_agg(left(uc.uc_txt,200), ' || ' ORDER BY uc.uc_txt) AS uc_muestra
+  FROM predios_objetivo po
+  LEFT JOIN uc ON uc.id_operacion = po.id_operacion
+  GROUP BY po.id_operacion
+),
+base AS (
+  SELECT
+    po.*,
+    COALESCE(a.n_uc_validas,0)                AS n_uc_validas,
+    COALESCE(a.uc_muestra,'(sin UC)')         AS uc_muestra
+  FROM predios_objetivo po
+  LEFT JOIN uc_agg a USING (id_operacion)
+)
+SELECT
+  '762'::text                     AS regla,
+  'ILC_Predio'::text             AS objeto,
+  'preprod.ilc_predio'::text     AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  'INCUMPLE: Debe existir ≥1 UC válida (no parqueadero/garaje descubierto ni no construida).'::text AS descripcion,
+  (
+    'condicion='||b.condicion||
+    ', s22='||b.s22||
+    ', s27_30='||b.s27_30||
+    ', n_uc_validas='||b.n_uc_validas||
+    ', uc_muestra='||b.uc_muestra
+  )::text                        AS valor,
+  FALSE                          AS cumple,
+  NOW()                          AS created_at,
+  NOW()                          AS updated_at
+FROM base b
+WHERE b.n_uc_validas = 0
+ORDER BY b.id_operacion, b.objectid;
+
+--774
+DROP TABLE IF EXISTS reglas.regla_774;
+
+CREATE TABLE reglas.regla_774 AS
+WITH uc AS (
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio) AS id_operacion,
+    u.planta_ubicacion
+  FROM preprod.cr_unidadconstruccion u
+)
+SELECT
+  '774'::text             AS regla,
+  'CR_UnidadConstruccion'::text AS objeto,
+  'preprod.cr_unidadconstruccion'::text AS tabla,
+  uc.objectid,
+  uc.globalid,
+  uc.id_operacion,
+  COALESCE(uc.planta_ubicacion::text,'(NULL)') AS planta,
+  'INCUMPLE: CR_UnidadConstruccion.Planta_Ubicacion debe ser > 0'::text AS descripcion,
+  (
+    'planta_ubicacion='||COALESCE(uc.planta_ubicacion::text,'NULL')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW()  AS created_at,
+  NOW()  AS updated_at
+FROM uc
+WHERE COALESCE(uc.planta_ubicacion,0) <= 0
+ORDER BY uc.id_operacion, uc.objectid;
+
+--771
+DROP TABLE IF EXISTS reglas.regla_771;
+
+CREATE TABLE reglas.regla_771 AS
+WITH cuc AS (
+  SELECT
+    c.objectid,
+    c.globalid,
+    c.id_caracteristicas_unidad_cons     AS cuc_id,
+    lower(btrim(c.tipo_unidad_construccion)) AS tipo_uc,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc AS (
+  SELECT
+    u.id_caracteristicasunidadconstru    AS cuc_id_fk,
+    btrim(u.id_operacion_predio)         AS id_operacion
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc_uc AS (
+  SELECT
+    c.objectid,
+    c.globalid,
+    u.id_operacion,
+    c.tipo_uc,
+    c.uso
+  FROM cuc c
+  LEFT JOIN uc u ON u.cuc_id_fk = c.cuc_id
+)
+SELECT
+  '771'::text                                              AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text            AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text    AS tabla,
+  cuc_uc.objectid,
+  cuc_uc.globalid,
+  cuc_uc.id_operacion,
+  NULL::varchar(30)                                        AS npn,
+  'INCUMPLE: Si Tipo_Unidad_Construccion = ''Industrial'' el Uso debe ser Industrial.*'::text AS descripcion,
+  COALESCE(cuc_uc.uso,'(SIN USO)')                         AS valor,   -- <<< aquí guardamos el uso incumplido
+  FALSE                                                    AS cumple,
+  NOW()                                                    AS created_at,
+  NOW()                                                    AS updated_at
+FROM cuc_uc
+WHERE cuc_uc.tipo_uc = 'industrial'
+  AND (cuc_uc.uso IS NULL OR cuc_uc.uso NOT LIKE 'Industrial%')
+ORDER BY cuc_uc.id_operacion, cuc_uc.objectid;
+
+--772
+DROP TABLE IF EXISTS reglas.regla_772;
+
+CREATE TABLE reglas.regla_772 AS
+WITH cuc AS (
+  SELECT
+    c.objectid,
+    c.globalid,
+    c.id_caracteristicas_unidad_cons     AS cuc_id,
+    lower(btrim(c.tipo_unidad_construccion)) AS tipo_uc,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc AS (
+  SELECT
+    u.id_caracteristicasunidadconstru    AS cuc_id_fk,
+    btrim(u.id_operacion_predio)         AS id_operacion
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc_uc AS (
+  SELECT
+    c.objectid,
+    c.globalid,
+    u.id_operacion,
+    c.tipo_uc,
+    c.uso
+  FROM cuc c
+  LEFT JOIN uc u ON u.cuc_id_fk = c.cuc_id
+)
+SELECT
+  '772'::text                                              AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text            AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text    AS tabla,
+  cuc_uc.objectid,
+  cuc_uc.globalid,
+  cuc_uc.id_operacion,
+  NULL::varchar(30)                                        AS npn,
+  'INCUMPLE: Si Tipo_Unidad_Construccion = ''Institucional'' el Uso debe ser Institucional.*'::text AS descripcion,
+  COALESCE(cuc_uc.uso,'(SIN USO)')                         AS valor,   -- guardamos el uso incumplido
+  FALSE                                                    AS cumple,
+  NOW()                                                    AS created_at,
+  NOW()                                                    AS updated_at
+FROM cuc_uc
+WHERE cuc_uc.tipo_uc = 'institucional'
+  AND (cuc_uc.uso IS NULL OR cuc_uc.uso NOT LIKE 'Institucional%')
+ORDER BY cuc_uc.id_operacion, cuc_uc.objectid;
+
+--773
+
+DROP TABLE IF EXISTS reglas.regla_773;
+
+CREATE TABLE reglas.regla_773 AS
+WITH cuc AS (
+  SELECT
+    c.objectid,
+    c.globalid,
+    c.id_caracteristicas_unidad_cons                 AS cuc_id,
+    lower(btrim(c.tipo_unidad_construccion))         AS tipo_uc,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc AS (
+  SELECT
+    u.id_caracteristicasunidadconstru                AS cuc_id_fk,
+    btrim(u.id_operacion_predio)                     AS id_operacion
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc_uc AS (
+  SELECT
+    c.objectid,
+    c.globalid,
+    u.id_operacion,
+    c.tipo_uc,
+    c.uso
+  FROM cuc c
+  LEFT JOIN uc u ON u.cuc_id_fk = c.cuc_id
+)
+SELECT
+  '773'::text                                           AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text         AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  cuc_uc.objectid,
+  cuc_uc.globalid,
+  cuc_uc.id_operacion,
+  NULL::varchar(30)                                     AS npn,  -- no aplica aquí
+  'INCUMPLE: Si Tipo_Unidad_Construccion = ''Residencial'' el Uso debe ser Residencial.*'::text AS descripcion,
+  COALESCE(cuc_uc.uso,'(SIN USO)')                      AS valor,  -- guarda el uso no-residencial
+  FALSE                                                 AS cumple,
+  NOW()                                                 AS created_at,
+  NOW()                                                 AS updated_at
+FROM cuc_uc
+WHERE cuc_uc.tipo_uc = 'residencial'
+  AND (cuc_uc.uso IS NULL OR cuc_uc.uso NOT LIKE 'Residencial%')
+ORDER BY cuc_uc.id_operacion, cuc_uc.objectid;
+
+--775
+DROP TABLE IF EXISTS reglas.regla_775_incumple;
+
+CREATE TABLE reglas.regla_775_incumple AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    lower(btrim(p.destinacion_economica))         AS dest_econ,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+predio_hab AS (               -- solo predios Habitacionales
+  SELECT *
+  FROM predio
+  WHERE dest_econ = 'habitacional'
+),
+uc AS (                       -- UC con FK a CUC y área en 9377 (m²) sin UPDATE
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS id_operacion,
+    u.id_caracteristicasunidadconstru AS cuc_id_fk,
+    -- Si el SRID es 0, asumimos 9377; transformamos solo si es distinto a 9377
+    COALESCE(
+      ST_Area(
+        CASE
+          WHEN COALESCE(NULLIF(ST_SRID(u.shape),0), 9377) = 9377 THEN
+            ST_CollectionExtract(ST_MakeValid(u.shape), 3)
+          ELSE
+            ST_Transform(
+              ST_CollectionExtract(
+                ST_MakeValid(
+                  ST_SetSRID(u.shape, COALESCE(NULLIF(ST_SRID(u.shape),0), 9377))
+                ), 3
+              ),
+              9377
+            )
+        END
+      ),
+      0
+    ) AS area_m2
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS (                      -- características de la UC (para el Uso)
+  SELECT
+    c.id_caracteristicas_unidad_cons  AS cuc_id,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc_en_predio AS (             -- UC de cada predio con su Uso
+  SELECT
+    ph.objectid     AS predio_objectid,
+    ph.globalid     AS predio_globalid,
+    ph.id_operacion AS id_operacion,
+    ph.npn          AS npn,
+    u.objectid      AS uc_objectid,
+    u.globalid      AS uc_globalid,
+    u.area_m2,
+    c.uso,
+    (c.uso ILIKE 'Residencial%') AS es_residencial
+  FROM predio_hab ph
+  LEFT JOIN uc  u ON u.id_operacion = ph.id_operacion
+  LEFT JOIN cuc c ON c.cuc_id = u.cuc_id_fk
+),
+agg AS (                      -- agregados por predio
+  SELECT
+    id_operacion,
+    npn,
+    predio_objectid AS objectid,
+    predio_globalid AS globalid,
+    COUNT(uc_objectid)                                      AS n_uc_total,
+    COUNT(*) FILTER (WHERE es_residencial)                  AS n_uc_residenciales,
+    SUM(area_m2)                                            AS area_total_uc,
+    SUM(area_m2) FILTER (WHERE es_residencial)              AS area_residencial
+  FROM uc_en_predio
+  GROUP BY id_operacion, npn, objectid, globalid
+),
+base AS (                    -- razones y métricas finales
+  SELECT
+    a.objectid,
+    a.globalid,
+    a.id_operacion,
+    a.npn,
+    a.n_uc_total,
+    a.n_uc_residenciales,
+    COALESCE(a.area_total_uc,0)    AS area_total_uc,
+    COALESCE(a.area_residencial,0) AS area_residencial,
+    CASE
+      WHEN COALESCE(a.area_total_uc,0) = 0 THEN 0::numeric
+      ELSE ROUND((a.area_residencial / NULLIF(a.area_total_uc,0))::numeric, 6)
+    END AS ratio_residencial
+  FROM agg a
+)
+SELECT
+  '775'::text                 AS regla,
+  'ILC_Predio'::text          AS objeto,
+  'preprod.ilc_predio'::text  AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  CASE
+    WHEN b.n_uc_total = 0 THEN
+      'INCUMPLE: Predio Habitacional sin CR_UnidadConstruccion asociadas.'
+    WHEN b.n_uc_residenciales = 0 THEN
+      'INCUMPLE: Sin UC con Uso Residencial (Uso ILIKE ''Residencial%'').'
+    ELSE
+      'INCUMPLE: Área de UC Residencial no predominante (<50%). ' ||
+      'n_uc_residenciales='||b.n_uc_residenciales||
+      ', area_residencial_m2='||ROUND(b.area_residencial::numeric,2)||
+      ', area_total_uc_m2='||ROUND(b.area_total_uc::numeric,2)||
+      ', ratio='||ROUND(b.ratio_residencial,4)
+  END::text                 AS descripcion,
+  b.ratio_residencial::numeric(38,8) AS valor,
+  FALSE                        AS cumple,
+  NOW()                        AS created_at,
+  NOW()                        AS updated_at
+FROM base b
+WHERE b.n_uc_total = 0
+   OR b.n_uc_residenciales = 0
+   OR b.ratio_residencial < 0.5
+ORDER BY b.id_operacion, b.objectid;
+
+
+--776
+DROP TABLE IF EXISTS reglas.regla_776_incumple;
+
+CREATE TABLE reglas.regla_776_incumple AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    lower(btrim(p.destinacion_economica))         AS dest_econ,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+predio_com AS (               -- solo predios Comerciales
+  SELECT *
+  FROM predio
+  WHERE dest_econ = 'comercial'
+),
+uc AS (                       -- UC con área en 9377 (m²), robusto a SRID=0, sin UPDATE
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS id_operacion,
+    u.id_caracteristicasunidadconstru AS cuc_id_fk,
+    COALESCE(
+      ST_Area(
+        CASE
+          WHEN COALESCE(NULLIF(ST_SRID(u.shape),0), 9377) = 9377 THEN
+            ST_CollectionExtract(ST_MakeValid(u.shape), 3)
+          ELSE
+            ST_Transform(
+              ST_CollectionExtract(
+                ST_MakeValid(
+                  ST_SetSRID(u.shape, COALESCE(NULLIF(ST_SRID(u.shape),0), 9377))
+                ), 3
+              ),
+              9377
+            )
+        END
+      ),
+      0
+    ) AS area_m2
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS (                      -- características
+  SELECT
+    c.id_caracteristicas_unidad_cons AS cuc_id,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc_en_predio AS (             -- UC de cada predio con su Uso
+  SELECT
+    pc.objectid     AS predio_objectid,
+    pc.globalid     AS predio_globalid,
+    pc.id_operacion AS id_operacion,
+    pc.npn,
+    u.objectid      AS uc_objectid,
+    u.globalid      AS uc_globalid,
+    u.area_m2,
+    c.uso,
+    (c.uso ILIKE 'Comercial%') AS es_comercial,
+    -- categoría de uso por prefijo (antes de '.' o '_')
+    split_part(replace(coalesce(c.uso,''),'.','_'), '_', 1) AS uso_cat
+  FROM predio_com pc
+  LEFT JOIN uc  u ON u.id_operacion = pc.id_operacion
+  LEFT JOIN cuc c ON c.cuc_id = u.cuc_id_fk
+),
+agg AS (                      -- agregados por predio (Comercial vs Total)
+  SELECT
+    id_operacion,
+    npn,
+    predio_objectid AS objectid,
+    predio_globalid AS globalid,
+    COUNT(uc_objectid)                               AS n_uc_total,
+    COUNT(*) FILTER (WHERE es_comercial)             AS n_uc_comerciales,
+    SUM(area_m2)                                     AS area_total_uc,
+    SUM(area_m2) FILTER (WHERE es_comercial)         AS area_comercial
+  FROM uc_en_predio
+  GROUP BY id_operacion, npn, objectid, globalid
+),
+areas_por_uso AS (            -- suma de área por categoría de uso
+  SELECT
+    id_operacion,
+    uso_cat,
+    SUM(area_m2) AS area_uso
+  FROM uc_en_predio
+  GROUP BY id_operacion, uso_cat
+),
+uso_top AS (                  -- uso predominante (mayor área) por predio
+  SELECT
+    a.id_operacion,
+    a.uso_cat AS uso_top,
+    a.area_uso AS area_top,
+    ROW_NUMBER() OVER (PARTITION BY a.id_operacion ORDER BY a.area_uso DESC NULLS LAST) AS rn
+  FROM areas_por_uso a
+),
+base AS (                     -- métrica final + join con uso predominante
+  SELECT
+    g.objectid,
+    g.globalid,
+    g.id_operacion,
+    g.npn,
+    g.n_uc_total,
+    g.n_uc_comerciales,
+    COALESCE(g.area_total_uc,0)  AS area_total_uc,
+    COALESCE(g.area_comercial,0) AS area_comercial,
+    CASE
+      WHEN COALESCE(g.area_total_uc,0) = 0 THEN 0::numeric
+      ELSE ROUND((g.area_comercial / NULLIF(g.area_total_uc,0))::numeric, 6)
+    END AS ratio_comercial,
+    ut.uso_top,
+    COALESCE(ut.area_top,0)      AS area_top
+  FROM agg g
+  LEFT JOIN uso_top ut
+    ON ut.id_operacion = g.id_operacion AND ut.rn = 1
+)
+SELECT
+  '776'::text                AS regla,
+  'ILC_Predio'::text         AS objeto,
+  'preprod.ilc_predio'::text AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  CASE
+    WHEN b.n_uc_total = 0 THEN
+      'INCUMPLE: Predio Comercial sin CR_UnidadConstruccion asociadas.'
+    WHEN b.n_uc_comerciales = 0 THEN
+      'INCUMPLE: Sin UC con Uso Comercial (Uso ILIKE ''Comercial%'').'
+    WHEN b.area_total_uc > 0 AND b.area_comercial < b.area_top THEN
+      'INCUMPLE: El uso predominante es '||COALESCE(b.uso_top,'(desconocido)')
+      ||' con '||ROUND(b.area_top::numeric,2)||' m² ('
+      ||ROUND( (100*b.area_top/NULLIF(b.area_total_uc,0))::numeric, 2 )||'%). '
+      ||'Comercial tiene '||ROUND(b.area_comercial::numeric,2)||' m² ('
+      ||ROUND( (100*b.area_comercial/NULLIF(b.area_total_uc,0))::numeric, 2 )||'%).'
+    ELSE
+      'INCUMPLE: Área de UC Comercial no predominante.'
+  END AS descripcion,
+  -- valor en porcentaje (0–100), no proporción
+  ROUND( (100*b.ratio_comercial)::numeric, 2 ) AS valor,
+  FALSE                             AS cumple,
+  NOW()                             AS created_at,
+  NOW()                             AS updated_at
+FROM base b
+WHERE b.n_uc_total = 0
+   OR b.n_uc_comerciales = 0
+   OR (b.area_total_uc > 0 AND b.area_comercial < b.area_top)
+ORDER BY b.id_operacion, b.objectid;
+
+
+--777
+DROP TABLE IF EXISTS reglas.regla_777;
+
+CREATE TABLE reglas.regla_777 AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    lower(btrim(p.destinacion_economica))         AS dest_econ,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+predio_ind AS (              -- solo predios Industriales
+  SELECT *
+  FROM predio
+  WHERE dest_econ = 'industrial'
+),
+-- UC con área en 9377 (m²), robusto (SRID=0, no-polígonos), sin UPDATE
+uc AS (
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS id_operacion,
+    u.id_caracteristicasunidadconstru AS cuc_id_fk,
+    COALESCE(
+      ST_Area(
+        CASE
+          WHEN COALESCE(NULLIF(ST_SRID(u.shape),0), 9377) = 9377 THEN
+            ST_CollectionExtract(ST_MakeValid(u.shape), 3)
+          ELSE
+            ST_Transform(
+              ST_CollectionExtract(
+                ST_MakeValid(
+                  ST_SetSRID(u.shape, COALESCE(NULLIF(ST_SRID(u.shape),0), 9377))
+                ), 3
+              ),
+              9377
+            )
+        END
+      ),
+      0
+    ) AS area_m2
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS (
+  SELECT
+    c.id_caracteristicas_unidad_cons AS cuc_id,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc_en_predio AS (            -- UC + Uso
+  SELECT
+    pi.objectid     AS predio_objectid,
+    pi.globalid     AS predio_globalid,
+    pi.id_operacion AS id_operacion,
+    pi.npn,
+    u.objectid      AS uc_objectid,
+    u.globalid      AS uc_globalid,
+    u.area_m2,
+    c.uso,
+    (c.uso ILIKE 'Industrial%') AS es_industrial,
+    -- categoría por prefijo ('Industrial.x' o 'Industrial_x' -> 'Industrial')
+    split_part(replace(coalesce(c.uso,''),'.','_'), '_', 1) AS uso_cat
+  FROM predio_ind pi
+  LEFT JOIN uc  u ON u.id_operacion = pi.id_operacion
+  LEFT JOIN cuc c ON c.cuc_id = u.cuc_id_fk
+),
+-- agregados Industrial vs total
+agg AS (
+  SELECT
+    id_operacion,
+    npn,
+    predio_objectid AS objectid,
+    predio_globalid AS globalid,
+    COUNT(uc_objectid)                              AS n_uc_total,
+    COUNT(*) FILTER (WHERE es_industrial)           AS n_uc_industriales,
+    SUM(area_m2)                                    AS area_total_uc,
+    SUM(area_m2) FILTER (WHERE es_industrial)       AS area_industrial
+  FROM uc_en_predio
+  GROUP BY id_operacion, npn, objectid, globalid
+),
+-- suma de área por categoría de uso para hallar el predominante
+areas_por_uso AS (
+  SELECT
+    id_operacion,
+    uso_cat,
+    SUM(area_m2) AS area_uso
+  FROM uc_en_predio
+  GROUP BY id_operacion, uso_cat
+),
+uso_top AS (                  -- uso de mayor área en el predio
+  SELECT
+    a.id_operacion,
+    a.uso_cat AS uso_top,
+    a.area_uso AS area_top,
+    ROW_NUMBER() OVER (PARTITION BY a.id_operacion ORDER BY a.area_uso DESC NULLS LAST) AS rn
+  FROM areas_por_uso a
+),
+base AS (                     -- métricas finales + uso predominante
+  SELECT
+    g.objectid,
+    g.globalid,
+    g.id_operacion,
+    g.npn,
+    g.n_uc_total,
+    g.n_uc_industriales,
+    COALESCE(g.area_total_uc,0)   AS area_total_uc,
+    COALESCE(g.area_industrial,0) AS area_industrial,
+    CASE
+      WHEN COALESCE(g.area_total_uc,0) = 0 THEN 0::numeric
+      ELSE ROUND((g.area_industrial / NULLIF(g.area_total_uc,0))::numeric, 6)
+    END AS ratio_industrial,
+    ut.uso_top,
+    COALESCE(ut.area_top,0)       AS area_top
+  FROM agg g
+  LEFT JOIN uso_top ut
+    ON ut.id_operacion = g.id_operacion AND ut.rn = 1
+)
+SELECT
+  '777'::text                AS regla,
+  'ILC_Predio'::text         AS objeto,
+  'preprod.ilc_predio'::text AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  CASE
+    WHEN b.n_uc_total = 0 THEN
+      'INCUMPLE: Predio Industrial sin CR_UnidadConstruccion asociadas.'
+    WHEN b.n_uc_industriales = 0 THEN
+      'INCUMPLE: Sin UC con Uso Industrial (Uso ILIKE ''Industrial%'').'
+    WHEN b.area_total_uc > 0 AND b.area_industrial < b.area_top THEN
+      'INCUMPLE: El uso predominante es '||COALESCE(b.uso_top,'(desconocido)')
+      ||' con '||ROUND(b.area_top::numeric,2)||' m² ('
+      ||ROUND( (100*b.area_top/NULLIF(b.area_total_uc,0))::numeric, 2 )||'%). '
+      ||'Industrial tiene '||ROUND(b.area_industrial::numeric,2)||' m² ('
+      ||ROUND( (100*b.area_industrial/NULLIF(b.area_total_uc,0))::numeric, 2 )||'%).'
+    ELSE
+      'INCUMPLE: Área de UC Industrial no predominante.'
+  END AS descripcion,
+  -- valor = porcentaje (0–100) del área Industrial
+  ROUND( (100*b.ratio_industrial)::numeric, 2 ) AS valor,
+  FALSE                             AS cumple,
+  NOW()                             AS created_at,
+  NOW()                             AS updated_at
+FROM base b
+WHERE b.n_uc_total = 0
+   OR b.n_uc_industriales = 0
+   OR (b.area_total_uc > 0 AND b.area_industrial < b.area_top)
+ORDER BY b.id_operacion, b.objectid;
+
+
