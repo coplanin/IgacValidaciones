@@ -3575,3 +3575,154 @@ WHERE b.n_uc_total = 0
 ORDER BY b.id_operacion, b.objectid;
 
 
+--778
+DROP TABLE IF EXISTS reglas.regla_779_incumple;
+
+CREATE TABLE reglas.regla_779_incumple AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    lower(btrim(p.destinacion_economica))         AS dest_econ,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+predio_obj AS (  -- Institucional/Cultural/Educativo/Religioso (soporta el typo "Eductaivo")
+  SELECT *
+  FROM predio
+  WHERE dest_econ IN ('institucional','cultural','educativo','eductaivo','religioso')
+),
+-- UC con área en 9377 (m²), robusto a SRID=0 y no-polígonos, sin UPDATE
+uc AS (
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS id_operacion,
+    u.id_caracteristicasunidadconstru AS cuc_id_fk,
+    COALESCE(
+      ST_Area(
+        CASE
+          WHEN COALESCE(NULLIF(ST_SRID(u.shape),0), 9377) = 9377 THEN
+            ST_CollectionExtract(ST_MakeValid(u.shape), 3)
+          ELSE
+            ST_Transform(
+              ST_CollectionExtract(
+                ST_MakeValid(
+                  ST_SetSRID(u.shape, COALESCE(NULLIF(ST_SRID(u.shape),0), 9377))
+                ), 3
+              ),
+              9377
+            )
+        END
+      ),
+      0
+    ) AS area_m2
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS (
+  SELECT
+    c.id_caracteristicas_unidad_cons AS cuc_id,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+uc_en_predio AS (  -- UC + Uso (y categoría por prefijo)
+  SELECT
+    po.objectid     AS predio_objectid,
+    po.globalid     AS predio_globalid,
+    po.id_operacion AS id_operacion,
+    po.npn,
+    u.objectid      AS uc_objectid,
+    u.globalid      AS uc_globalid,
+    u.area_m2,
+    c.uso,
+    (c.uso ILIKE 'Institucional%') AS es_institucional,
+    split_part(replace(coalesce(c.uso,''),'.','_'), '_', 1) AS uso_cat
+  FROM predio_obj po
+  LEFT JOIN uc  u ON u.id_operacion = po.id_operacion
+  LEFT JOIN cuc c ON c.cuc_id = u.cuc_id_fk
+),
+-- agregados Institucional vs total
+agg AS (
+  SELECT
+    id_operacion,
+    npn,
+    predio_objectid AS objectid,
+    predio_globalid AS globalid,
+    COUNT(uc_objectid)                               AS n_uc_total,
+    COUNT(*) FILTER (WHERE es_institucional)         AS n_uc_institucionales,
+    SUM(area_m2)                                     AS area_total_uc,
+    SUM(area_m2) FILTER (WHERE es_institucional)     AS area_institucional
+  FROM uc_en_predio
+  GROUP BY id_operacion, npn, objectid, globalid
+),
+-- suma de área por categoría de uso para hallar predominante
+areas_por_uso AS (
+  SELECT
+    id_operacion,
+    uso_cat,
+    SUM(area_m2) AS area_uso
+  FROM uc_en_predio
+  GROUP BY id_operacion, uso_cat
+),
+uso_top AS (  -- uso de mayor área
+  SELECT
+    a.id_operacion,
+    a.uso_cat AS uso_top,
+    a.area_uso AS area_top,
+    ROW_NUMBER() OVER (PARTITION BY a.id_operacion ORDER BY a.area_uso DESC NULLS LAST) AS rn
+  FROM areas_por_uso a
+),
+base AS (  -- métricas finales + uso predominante
+  SELECT
+    g.objectid,
+    g.globalid,
+    g.id_operacion,
+    g.npn,
+    g.n_uc_total,
+    g.n_uc_institucionales,
+    COALESCE(g.area_total_uc,0)      AS area_total_uc,
+    COALESCE(g.area_institucional,0) AS area_institucional,
+    CASE
+      WHEN COALESCE(g.area_total_uc,0) = 0 THEN 0::numeric
+      ELSE ROUND((g.area_institucional / NULLIF(g.area_total_uc,0))::numeric, 6)
+    END AS ratio_institucional,
+    ut.uso_top,
+    COALESCE(ut.area_top,0)          AS area_top
+  FROM agg g
+  LEFT JOIN uso_top ut
+    ON ut.id_operacion = g.id_operacion AND ut.rn = 1
+)
+SELECT
+  '779'::text                AS regla,
+  'ILC_Predio'::text         AS objeto,
+  'preprod.ilc_predio'::text AS tabla,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  b.npn,
+  CASE
+    WHEN b.n_uc_total = 0 THEN
+      'INCUMPLE: Predio Institucional/Cultural/Educativo/Religioso sin CR_UnidadConstruccion asociadas.'
+    WHEN b.n_uc_institucionales = 0 THEN
+      'INCUMPLE: Sin UC con Uso Institucional (Uso ILIKE ''Institucional%'').'
+    WHEN b.area_total_uc > 0 AND b.area_institucional < b.area_top THEN
+      'INCUMPLE: El uso predominante es '||COALESCE(b.uso_top,'(desconocido)')
+      ||' con '||ROUND(b.area_top::numeric,2)||' m² ('
+      ||ROUND( (100*b.area_top/NULLIF(b.area_total_uc,0))::numeric, 2 )||'%). '
+      ||'Institucional tiene '||ROUND(b.area_institucional::numeric,2)||' m² ('
+      ||ROUND( (100*b.area_institucional/NULLIF(b.area_total_uc,0))::numeric, 2 )||'%).'
+    ELSE
+      'INCUMPLE: Área de UC Institucional no predominante.'
+  END AS descripcion,
+  -- valor = porcentaje (0–100) del área institucional sobre el total UC
+  ROUND( (100*b.ratio_institucional)::numeric, 2 ) AS valor,
+  FALSE                             AS cumple,
+  NOW()                             AS created_at,
+  NOW()                             AS updated_at
+FROM base b
+WHERE b.n_uc_total = 0
+   OR b.n_uc_institucionales = 0
+   OR (b.area_total_uc > 0 AND b.area_institucional < b.area_top)
+ORDER BY b.id_operacion, b.objectid;
+
