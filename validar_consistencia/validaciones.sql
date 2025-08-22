@@ -4286,59 +4286,6 @@ SELECT
 FROM res r
 WHERE r.hay_incumple; 
 
---764
-
-ROLLBACK;
-drop table if exists reglas.regla_784;
-CREATE TABLE reglas.regla_784 AS
-WITH predio AS (
-  SELECT 
-    btrim(p.id_operacion) AS id_operacion,
-    btrim(p.numero_predial_nacional)::varchar(30) AS npn,
-    lower(btrim(p.condicion_predio)) AS condicion
-  FROM preprod.ilc_predio p
-),
-uc AS (
-  SELECT 
-    u.id_operacion_predio AS id_operacion,
-    u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
-),
-cuc AS (
-  SELECT 
-    c.id_caracteristicas_unidad_cons AS cuc_id,
-    lower(btrim(c.tipo_unidad_construccion)) AS tipo_uc,
-    lower(btrim(c.uso)) AS uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
-),
-pu AS (
-  SELECT 
-    p.npn,
-    p.condicion,
-    c.tipo_uc,
-    c.uso
-  FROM predio p
-  JOIN uc u ON u.id_operacion = p.id_operacion
-  JOIN cuc c ON c.cuc_id = u.cuc_id
-)
-SELECT
-  '784'::text                        AS regla,
-  'CR_UnidadConstruccion'::text      AS objeto,
-  'preprod.cr_unidadconstruccion'    AS tabla,
-  NULL::int4                         AS objectid,
-  NULL::varchar(38)                  AS globalid,
-  NULL::text                         AS id_operacion,
-  pu.npn                             AS npn,
-  'INCUMPLE: Predio con condición <> PH/Condominio, tipo_uc='||pu.tipo_uc||'.' AS descripcion,
-  ('uso='||pu.uso||' contiene "_PH"')::text AS valor,   -- 👉 Aquí el detalle del uso que incumple
-  FALSE                               AS cumple,
-  NOW()                               AS created_at,
-  NOW()                               AS updated_at
-FROM pu
-WHERE pu.condicion NOT IN ('ph','condominio','ph_unidad_predial','condominio_unidad_predial')
-  AND pu.tipo_uc IN ('residencial','comercial','institucional','industrial')
-  AND pu.uso LIKE '%_ph%';
-
 
 --764
 
@@ -4746,3 +4693,294 @@ WHERE
   OR final.n_invalidos > 0
   OR COALESCE(final.letras_faltantes,'') <> ''
 ORDER BY final.id_operacion, final.objectid;
+
+-- REGLA 769 - INCUMPLE
+-- Si Tipo_Unidad_Construccion = 'Anexo' entonces Uso debe contener '%Anexo%'
+
+DROP TABLE IF EXISTS reglas.regla_769;
+
+CREATE TABLE reglas.regla_769 AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+uc AS (  -- puente: trae la FK a características y el id_operacion del predio
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS id_operacion,
+    u.id_caracteristicasunidadconstru AS cuc_id
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS ( -- características: tipo y uso
+  SELECT
+    c.id_caracteristicas_unidad_cons AS cuc_id,
+    c.tipo_unidad_construccion       AS tipo_uc,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+predio_uc_cuc AS (
+  SELECT
+    pr.objectid   AS predio_objectid,
+    pr.globalid   AS predio_globalid,
+    pr.id_operacion,
+    pr.npn,
+    u.objectid    AS uc_objectid,
+    u.globalid    AS uc_globalid,
+    cu.tipo_uc,
+    cu.uso
+  FROM predio pr
+  LEFT JOIN uc  u   ON u.id_operacion = pr.id_operacion
+  LEFT JOIN cuc cu  ON cu.cuc_id      = u.cuc_id
+)
+SELECT
+  '769'::text                                 AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  puc.uc_objectid                             AS objectid,     -- apuntamos a la UC (donde se aplica la carac.)
+  puc.uc_globalid                             AS globalid,
+  puc.id_operacion,
+  puc.npn,
+  'INCUMPLE: Si Tipo_Unidad_Construccion = ''Anexo'' el Uso debe contener ''Anexo''.'::text AS descripcion,
+  (
+    'tipo_uc='||COALESCE(puc.tipo_uc,'NULL')||
+    ', uso='||COALESCE(puc.uso,'NULL')
+  )::text AS valor,
+  FALSE      AS cumple,
+  NOW()      AS created_at,
+  NOW()      AS updated_at
+FROM predio_uc_cuc puc
+WHERE lower(puc.tipo_uc) = 'anexo'
+  AND (puc.uso IS NULL OR puc.uso NOT ILIKE '%anexo%')
+ORDER BY puc.id_operacion, puc.uc_objectid;
+
+
+-- REGLA 770 - INCUMPLE
+-- Si Tipo_Unidad_Construccion = 'Comercial' entonces Uso debe contener '%Comercial%'
+
+DROP TABLE IF EXISTS reglas.regla_770;
+
+CREATE TABLE reglas.regla_770 AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS id_operacion,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+uc AS (  -- puente: trae la FK a características y el id_operacion del predio
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS id_operacion,
+    u.id_caracteristicasunidadconstru AS cuc_id
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS ( -- características: tipo y uso
+  SELECT
+    c.id_caracteristicas_unidad_cons AS cuc_id,
+    c.tipo_unidad_construccion       AS tipo_uc,
+    c.uso
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+predio_uc_cuc AS (
+  SELECT
+    pr.objectid   AS predio_objectid,
+    pr.globalid   AS predio_globalid,
+    pr.id_operacion,
+    pr.npn,
+    u.objectid    AS uc_objectid,
+    u.globalid    AS uc_globalid,
+    cu.tipo_uc,
+    cu.uso
+  FROM predio pr
+  LEFT JOIN uc  u   ON u.id_operacion = pr.id_operacion
+  LEFT JOIN cuc cu  ON cu.cuc_id      = u.cuc_id
+)
+SELECT
+  '770'::text                                 AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  puc.uc_objectid                             AS objectid,     -- apuntamos a la UC (donde se aplica la carac.)
+  puc.uc_globalid                             AS globalid,
+  puc.id_operacion,
+  puc.npn,
+  'INCUMPLE: Si Tipo_Unidad_Construccion = ''Comercial'' el Uso debe contener ''Comercial''.'::text AS descripcion,
+  (
+    'tipo_uc='||COALESCE(puc.tipo_uc,'NULL')||
+    ', uso='||COALESCE(puc.uso,'NULL')
+  )::text AS valor,
+  FALSE      AS cumple,
+  NOW()      AS created_at,
+  NOW()      AS updated_at
+FROM predio_uc_cuc puc
+WHERE lower(puc.tipo_uc) = 'comercial'
+  AND (puc.uso IS NULL OR puc.uso NOT ILIKE '%comercial%')
+ORDER BY puc.id_operacion, puc.uc_objectid;
+
+-- REGLA 793 - INCUMPLE (mostrar el valor que causa incumplimiento)
+
+DROP TABLE IF EXISTS reglas.regla_793;
+
+CREATE TABLE reglas.regla_793 AS
+WITH predio AS (
+  SELECT 
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS predio_id,
+    btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial,
+    lower(btrim(p.condicion_predio))              AS condicion_predio_l
+  FROM preprod.ilc_predio p
+),
+avaluo AS (
+  SELECT
+    a.objectid,
+    a.globalid,
+    btrim(a.id_operacion_predio) AS predio_id,
+    COALESCE(a.valor_comercial_terreno, 0)  AS valor_comercial_terreno,
+    COALESCE(a.avaluo_catastral_terreno, 0) AS avaluo_catastral_terreno
+  FROM preprod.ilc_estructuraavaluo a
+),
+pa AS (
+  SELECT
+    pr.objectid   AS predio_objectid,
+    pr.globalid   AS predio_globalid,
+    pr.predio_id,
+    pr.numero_predial,
+    av.objectid   AS avaluo_objectid,
+    av.globalid   AS avaluo_globalid,
+    av.valor_comercial_terreno,
+    av.avaluo_catastral_terreno,
+    pr.condicion_predio_l
+  FROM predio pr
+  LEFT JOIN avaluo av ON av.predio_id = pr.predio_id
+)
+SELECT
+  '793'::text                           AS regla,
+  'ILC_EstructuraAvaluo'::text         AS objeto,
+  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  pa.avaluo_objectid                   AS objectid,
+  pa.avaluo_globalid                   AS globalid,
+  pa.predio_id,
+  pa.numero_predial,
+  CASE
+    WHEN pa.valor_comercial_terreno <> 0 AND pa.avaluo_catastral_terreno <> 0
+      THEN 'INCUMPLE: Predio Informal con valor_comercial_terreno y avaluo_catastral_terreno <> 0.'
+    WHEN pa.valor_comercial_terreno <> 0
+      THEN 'INCUMPLE: Predio Informal con valor_comercial_terreno <> 0.'
+    WHEN pa.avaluo_catastral_terreno <> 0
+      THEN 'INCUMPLE: Predio Informal con avaluo_catastral_terreno <> 0.'
+  END::text AS descripcion,
+  -- Mostrar detalle del valor que incumple
+  CASE
+    WHEN pa.valor_comercial_terreno <> 0 AND pa.avaluo_catastral_terreno <> 0
+      THEN 'valor_comercial_terreno='||pa.valor_comercial_terreno::text||' | avaluo_catastral_terreno='||pa.avaluo_catastral_terreno::text
+    WHEN pa.valor_comercial_terreno <> 0
+      THEN 'valor_comercial_terreno='||pa.valor_comercial_terreno::text
+    WHEN pa.avaluo_catastral_terreno <> 0
+      THEN 'avaluo_catastral_terreno='||pa.avaluo_catastral_terreno::text
+  END::text AS valor,
+  FALSE AS cumple,
+  now()  AS created_at,
+  now()  AS updated_at
+FROM pa
+WHERE pa.condicion_predio_l = 'informal'
+  AND (pa.valor_comercial_terreno <> 0 OR pa.avaluo_catastral_terreno <> 0)
+ORDER BY pa.predio_id, pa.avaluo_objectid;
+
+-- REGLA 794 - INCUMPLE
+-- Si Destinacion_Economica ∈ {Lote_Urbanizable_No_Urbanizado, Lote_Urbanizable_No_Construido, Lote_No_Urbanizable, Lote_Rural}
+-- ⇒ valor_comercial_total_unidadesc = 0 y avaluo_catastral_total_unidades = 0
+
+DROP TABLE IF EXISTS reglas.regla_794;
+
+CREATE TABLE reglas.regla_794 AS
+WITH predio AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)                         AS predio_id,
+    btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial,
+    lower(btrim(p.destinacion_economica))         AS destinacion_l
+  FROM preprod.ilc_predio p
+),
+avaluo AS (
+  SELECT
+    a.objectid,
+    a.globalid,
+    btrim(a.id_operacion_predio) AS predio_id,
+    -- Totales de UNIDADES DE CONSTRUCCIÓN según tu definición de tabla
+    a.valor_comercial_total_unidadesc      AS valor_com_total_uc,
+    a.avaluo_catastral_total_unidades      AS aval_cat_total_uc
+  FROM preprod.ilc_estructuraavaluo a
+),
+pa AS (
+  SELECT
+    pr.objectid      AS predio_objectid,
+    pr.globalid      AS predio_globalid,
+    pr.predio_id,
+    pr.numero_predial,
+    pr.destinacion_l,
+    av.objectid      AS avaluo_objectid,
+    av.globalid      AS avaluo_globalid,
+    av.valor_com_total_uc,
+    av.aval_cat_total_uc
+  FROM predio pr
+  LEFT JOIN avaluo av ON av.predio_id = pr.predio_id
+),
+-- Destinaciones objetivo
+destino_objetivo AS (
+  SELECT unnest(ARRAY[
+    'lote_urbanizable_no_urbanizado',
+    'lote_urbanizable_no_construido',
+    'lote_no_urbanizable',
+    'lote_rural'
+  ]) AS dest_ok
+)
+SELECT
+  '794'::text                           AS regla,
+  'ILC_EstructuraAvaluo'::text         AS objeto,
+  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  pa.avaluo_objectid                   AS objectid,
+  pa.avaluo_globalid                   AS globalid,
+  pa.predio_id,
+  pa.numero_predial,
+  -- Mensaje claro según el caso
+  CASE
+    WHEN pa.avaluo_objectid IS NULL
+      THEN 'INCUMPLE: Predio con destinación tipo Lote* sin registro en ILC_EstructuraAvaluo.'
+    WHEN COALESCE(pa.valor_com_total_uc,0) <> 0 AND COALESCE(pa.aval_cat_total_uc,0) <> 0
+      THEN 'INCUMPLE: Totales de unidades (comercial y catastral) deben ser 0 para Lote*.'
+    WHEN COALESCE(pa.valor_com_total_uc,0) <> 0
+      THEN 'INCUMPLE: valor_comercial_total_unidadesc debe ser 0 para Lote*.'
+    WHEN COALESCE(pa.aval_cat_total_uc,0) <> 0
+      THEN 'INCUMPLE: avaluo_catastral_total_unidades debe ser 0 para Lote*.'
+  END::text AS descripcion,
+  -- Detalla qué variable(es) traen valor y cuánto
+  CASE
+    WHEN pa.avaluo_objectid IS NULL
+      THEN 'estructura_avaluo=NO_ENCONTRADA'
+    WHEN COALESCE(pa.valor_com_total_uc,0) <> 0 AND COALESCE(pa.aval_cat_total_uc,0) <> 0
+      THEN 'valor_comercial_total_unidadesc='||pa.valor_com_total_uc::text||' | avaluo_catastral_total_unidades='||pa.aval_cat_total_uc::text
+    WHEN COALESCE(pa.valor_com_total_uc,0) <> 0
+      THEN 'valor_comercial_total_unidadesc='||pa.valor_com_total_uc::text
+    WHEN COALESCE(pa.aval_cat_total_uc,0) <> 0
+      THEN 'avaluo_catastral_total_unidades='||pa.aval_cat_total_uc::text
+  END::text AS valor,
+  FALSE AS cumple,
+  now()  AS created_at,
+  now()  AS updated_at
+FROM pa
+JOIN destino_objetivo d
+  ON pa.destinacion_l = d.dest_ok
+WHERE
+      pa.avaluo_objectid IS NULL
+   OR COALESCE(pa.valor_com_total_uc,0) <> 0
+   OR COALESCE(pa.aval_cat_total_uc,0) <> 0
+ORDER BY pa.predio_id, pa.avaluo_objectid;
+
