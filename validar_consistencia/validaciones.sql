@@ -4984,3 +4984,770 @@ WHERE
    OR COALESCE(pa.aval_cat_total_uc,0) <> 0
 ORDER BY pa.predio_id, pa.avaluo_objectid;
 
+-- 785 REGLA ÚNICA - INCUMPLE (Comercial ⇔ Tipología en dominio Comercial/Conservación/ED_Servicios)
+
+DROP TABLE IF EXISTS reglas.regla_785;
+
+CREATE TABLE reglas.regla_785 AS
+WITH predio AS (
+  SELECT
+    btrim(p.id_operacion)                         AS predio_id,
+    btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
+  FROM preprod.ilc_predio p
+),
+uc AS (  -- puente UC ↔ características
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS predio_id,
+    u.id_caracteristicasunidadconstru AS cuc_id
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS ( -- características UC
+  SELECT
+    c.id_caracteristicas_unidad_cons  AS cuc_id,
+    btrim(c.tipo_unidad_construccion) AS tipo_uc,
+    btrim(c.tipo_tipologia)           AS tipologia
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+base AS (
+  SELECT
+    pr.predio_id,
+    pr.numero_predial,
+    u.objectid  AS uc_objectid,
+    u.globalid  AS uc_globalid,
+    cu.tipo_uc,
+    cu.tipologia,
+    lower(btrim(cu.tipo_uc)) AS tipo_uc_l,
+    lower(
+      btrim(
+        regexp_replace(                 -- normaliza tipología
+          replace(cu.tipologia,'.','_'),
+          '\s+', ' ', 'g'
+        )
+      )
+    ) AS tipologia_l
+  FROM predio pr
+  LEFT JOIN uc  u  ON u.predio_id = pr.predio_id
+  LEFT JOIN cuc cu ON cu.cuc_id    = u.cuc_id
+),
+-- Dominio Comercial principal (Comercial_*)
+dom_comercial AS (
+  SELECT unnest(ARRAY[
+    'comercial_basico_2_2014111',
+    'comercial_intermedio_1_2021132',
+    'comercial_intermedio_2_2021532',
+    'comercial_intermedio_3_2026532',
+    'comercial_especializado_1_2023123',
+    'comercial_especializado_2_2036543',
+    'comercial_especializado_3_2033133',
+    'comercial_especializado_4_2036533'
+  ]) AS tip_ok
+),
+-- Complementos que también obligan a Tipo_UC = Comercial
+dom_complementario AS (
+  SELECT unnest(ARRAY[
+    -- Conservación (Construcción restaurada 4/5/6)
+    'conservacion_construccion_tipo_4_restaurada_4034024',
+    'conservacion_construccion_tipo_5_restaurada_con_reforzamiento_4031035',
+    'conservacion_construccion_tipo_6_restaurada_con_reforzamiento_4031036',
+    -- ED Servicios
+    'ed_servicios_tipo_1_9026547'
+  ]) AS tip_ok
+),
+dom_total AS (
+  SELECT tip_ok FROM dom_comercial
+  UNION ALL
+  SELECT tip_ok FROM dom_complementario
+),
+flags AS (
+  SELECT
+    b.*,
+    (b.tipo_uc_l = 'comercial') AS tipo_es_com,
+    EXISTS (SELECT 1 FROM dom_total d WHERE d.tip_ok = b.tipologia_l) AS tipologia_en_dom
+  FROM base b
+)
+SELECT
+  '785'::text                       AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text     AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  f.uc_objectid                                     AS objectid,
+  f.uc_globalid                                     AS globalid,
+  f.predio_id,
+  f.numero_predial,
+  CASE
+    WHEN f.tipo_es_com AND NOT f.tipologia_en_dom
+      THEN 'INCUMPLE: Tipo_UC = Comercial pero Tipología fuera del dominio Comercial/Conservación/ED_Servicios.'
+    WHEN NOT f.tipo_es_com AND f.tipologia_en_dom
+      THEN 'INCUMPLE: Tipología pertenece al dominio Comercial (incl. Conservación/ED_Servicios) pero Tipo_UC <> Comercial.'
+    ELSE 'INCUMPLE (equivalencia rota)'
+  END AS descripcion,
+  ('tipo_uc='||COALESCE(f.tipo_uc,'NULL')||', tipologia='||COALESCE(f.tipologia,'NULL'))::text AS valor,
+  FALSE AS cumple,
+  now()  AS created_at,
+  now()  AS updated_at
+FROM flags f
+WHERE COALESCE(f.tipo_es_com,false) <> COALESCE(f.tipologia_en_dom,false)  -- XOR: rompe la equivalencia
+ORDER BY f.predio_id, f.uc_objectid;
+
+
+--786
+-- REGLA - INCUMPLE (Industrial → tipología debe contener "Industrial")
+
+DROP TABLE IF EXISTS reglas.regla_786;
+
+CREATE TABLE reglas.regla_786 AS
+WITH predio AS (
+  SELECT
+    btrim(p.id_operacion)                         AS predio_id,
+    btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
+  FROM preprod.ilc_predio p
+),
+uc AS (  -- puente UC ↔ características
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS predio_id,
+    u.id_caracteristicasunidadconstru AS cuc_id
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS ( -- características UC
+  SELECT
+    c.id_caracteristicas_unidad_cons  AS cuc_id,
+    btrim(c.tipo_unidad_construccion) AS tipo_uc,
+    btrim(c.tipo_tipologia)           AS tipologia
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+base AS (
+  SELECT
+    pr.predio_id,
+    pr.numero_predial,
+    u.objectid  AS uc_objectid,
+    u.globalid  AS uc_globalid,
+    cu.tipo_uc,
+    cu.tipologia,
+    lower(btrim(cu.tipo_uc)) AS tipo_uc_l,
+    -- normaliza: puntos→guiones bajos, colapsa espacios, lower + trim
+    lower(
+      btrim(
+        regexp_replace(
+          replace(cu.tipologia, '.', '_'),
+          '\s+',' ','g'
+        )
+      )
+    ) AS tipologia_l
+  FROM predio pr
+  LEFT JOIN uc  u  ON u.predio_id = pr.predio_id
+  LEFT JOIN cuc cu ON cu.cuc_id    = u.cuc_id
+)
+SELECT
+  '786'::text                         AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text     AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  b.uc_objectid                                     AS objectid,
+  b.uc_globalid                                     AS globalid,
+  b.predio_id,
+  b.numero_predial,
+  'INCUMPLE: Tipo_UC = ''Industrial'' pero Tipo_Tipologia no contiene la palabra "Industrial".'::text AS descripcion,
+  ('tipo_uc='||COALESCE(b.tipo_uc,'NULL')||', tipologia='||COALESCE(b.tipologia,'NULL'))::text AS valor,
+  FALSE AS cumple,
+  now() AS created_at,
+  now() AS updated_at
+FROM base b
+WHERE b.tipo_uc_l = 'industrial'
+  AND (b.tipologia IS NULL OR b.tipologia_l NOT LIKE '%industrial%')
+ORDER BY b.predio_id, b.uc_objectid;
+
+--787
+-- REGLA - INCUMPLE (Institucional → Tipología del dominio Institucional)
+
+DROP TABLE IF EXISTS reglas.regla_787;
+
+CREATE TABLE reglas.regla_787 AS
+WITH predio AS (
+  SELECT
+    btrim(p.id_operacion)                         AS predio_id,
+    btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
+  FROM preprod.ilc_predio p
+),
+uc AS (
+  SELECT
+    u.objectid,
+    u.globalid,
+    btrim(u.id_operacion_predio)      AS predio_id,
+    u.id_caracteristicasunidadconstru AS cuc_id
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS (
+  SELECT
+    c.id_caracteristicas_unidad_cons  AS cuc_id,
+    btrim(c.tipo_unidad_construccion) AS tipo_uc,
+    btrim(c.tipo_tipologia)           AS tipologia
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+base AS (
+  SELECT
+    pr.predio_id,
+    pr.numero_predial,
+    u.objectid  AS uc_objectid,
+    u.globalid  AS uc_globalid,
+    cu.tipo_uc,
+    cu.tipologia,
+    lower(btrim(cu.tipo_uc)) AS tipo_uc_l,
+    lower(btrim(regexp_replace(replace(cu.tipologia,'.','_'), '\s+',' ','g'))) AS tipologia_l
+  FROM predio pr
+  LEFT JOIN uc  u  ON u.predio_id = pr.predio_id
+  LEFT JOIN cuc cu ON cu.cuc_id    = u.cuc_id
+),
+dom_institucional AS (
+  SELECT unnest(ARRAY[
+    'institucional_salud_1_7011121',
+    'institucional_salud_2_7021132',
+    'institucional_salud_3_7031173',
+    'institucional_salud_plus_7036584',
+    'institucional_institucional_tipo_1_5014111',
+    'institucional_institucional_tipo_2_5011122',
+    'institucional_institucional_tipo_3_5021143',
+    'institucional_institucional_tipo_4_5036144',
+    'institucional_institucional_tipo_5_prefabricado_5015510',
+    'institucional_institucional_tipo_6_5011111',
+    'institucional_religioso_tipo_1_6021131',
+    'institucional_religioso_tipo_2_6031132'
+  ]) AS tip_ok
+)
+SELECT
+  '787'::text                           AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text    AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  b.uc_objectid                                    AS objectid,
+  b.uc_globalid                                    AS globalid,
+  b.predio_id,
+  b.numero_predial,
+  'INCUMPLE: Tipo_UC = Institucional pero Tipo_Tipologia no está en el dominio Institucional.'::text AS descripcion,
+  ('tipo_uc='||COALESCE(b.tipo_uc,'NULL')||', tipologia='||COALESCE(b.tipologia,'NULL'))::text AS valor,
+  FALSE AS cumple,
+  now() AS created_at,
+  now() AS updated_at
+FROM base b
+WHERE b.tipo_uc_l = 'institucional'
+  AND (
+    b.tipologia IS NULL OR
+    NOT EXISTS (SELECT 1 FROM dom_institucional d WHERE d.tip_ok = b.tipologia_l)
+  )
+ORDER BY b.predio_id, b.uc_objectid;
+
+
+--788
+
+-- REGLA - INCUMPLE (Anexo → tipo_anexo ∈ CUC_AnexoTipo)
+-- Solo UCs con tipo_unidad_construccion = 'Anexo'.
+DROP TABLE IF EXISTS reglas.regla_788;
+
+CREATE TABLE reglas.regla_788 AS
+WITH predio AS (
+  SELECT btrim(p.id_operacion) AS predio_id,
+         btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
+  FROM preprod.ilc_predio p
+),
+uc AS (
+  SELECT u.objectid,
+         u.globalid,
+         btrim(u.id_operacion_predio)      AS predio_id,
+         u.id_caracteristicasunidadconstru AS cuc_id
+  FROM preprod.cr_unidadconstruccion u
+),
+cuc AS (
+  SELECT c.id_caracteristicas_unidad_cons  AS cuc_id,
+         btrim(c.tipo_unidad_construccion) AS tipo_uc,
+         btrim(c.tipo_anexo)               AS tipo_anexo
+  FROM preprod.ilc_caracteristicasunidadconstruccion c
+),
+base AS (
+  SELECT
+    pr.predio_id,
+    pr.numero_predial,
+    u.objectid  AS uc_objectid,
+    u.globalid  AS uc_globalid,
+    cu.tipo_uc,
+    cu.tipo_anexo,
+    lower(btrim(cu.tipo_uc)) AS tipo_uc_l,
+    lower(btrim(regexp_replace(replace(cu.tipo_anexo,'.','_'), '\s+',' ', 'g')))  AS tipo_anexo_l,
+    lower(btrim(regexp_replace(replace(cu.tipo_anexo,'.','_'), '\s+','', 'g')))   AS tipo_anexo_key
+  FROM predio pr
+  JOIN uc  u  ON u.predio_id = pr.predio_id
+  JOIN cuc cu ON cu.cuc_id   = u.cuc_id
+  WHERE lower(btrim(cu.tipo_uc)) = 'anexo'   -- ✅ filtra SOLO Anexo usando el alias correcto
+),
+-- homologación interna (según tu lista)
+homol AS (
+  SELECT
+    b.*,
+    CASE
+      WHEN b.tipo_anexo_key = 'albercas_baniaderas_tipo_40' THEN 'Albercas_Baniaderas.Sencilla_Tipo_40'
+      WHEN b.tipo_anexo_key = 'albercas_baniaderas_tipo_60' THEN 'Albercas_Baniaderas.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'albercas_baniaderas_tipo_80' THEN 'Albercas_Baniaderas.Plus_Tipo_80'
+      WHEN b.tipo_anexo_key = 'beneficiaderos_tipo_40' THEN 'Beneficiaderos.Sencilla_Tipo_40'
+      WHEN b.tipo_anexo_key = 'beneficiaderos_tipo_60' THEN 'Beneficiaderos.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'beneficiaderos_tipo_80' THEN 'Beneficiaderos.Plus_Tipo_80'
+      WHEN b.tipo_anexo_key = 'carreteras_tipo_60' THEN 'Carreteras.Zona_Dura_Adoquin_Trafico_Liviano_Tipo_60'
+      WHEN b.tipo_anexo_key = 'cimientos_estructura_muros_placabase_tipo_20' THEN 'Cimientos_Estructura_Muros_Placabase.Simples_Tipo_20'
+      WHEN b.tipo_anexo_key = 'cimientos_estructura_muros_placabase_tipo_40' THEN 'Cimientos_Estructura_Muros_Placabase.Simples_Placa_Tipo_40'
+      WHEN b.tipo_anexo_key = 'cimientos_estructura_muros_placabase_tipo_60' THEN 'Cimientos_Estructura_Muros_Placabase.Muro_Tipo_60'
+      WHEN b.tipo_anexo_key = 'cimientos_estructura_muros_placabase_tipo_80' THEN 'Cimientos_Estructura_Muros_Placabase.Placa_Muro_Tipo_80'
+      WHEN b.tipo_anexo_key = 'cocheras_marraneras_porquerizas_tipo_20' THEN 'Cocheras_Marraneras_Porquerizas.Sencilla_Tipo_20'
+      WHEN b.tipo_anexo_key = 'cocheras_marraneras_porquerizas_tipo_40' THEN 'Cocheras_Marraneras_Porquerizas.Media_Tipo_40'
+      WHEN b.tipo_anexo_key = 'cocheras_marraneras_porquerizas_tipo_80' THEN 'Cocheras_Marraneras_Porquerizas.Tecnificada_Tipo_80'
+      WHEN b.tipo_anexo_key = 'corrales_tipo_20' THEN 'Corrales.Sencillo_Tipo_20'
+      WHEN b.tipo_anexo_key = 'corrales_tipo_40' THEN 'Corrales.Medio_Tipo_40'
+      WHEN b.tipo_anexo_key = 'corrales_tipo_80' THEN 'Corrales.Tecnificado_Tipo_80'
+      WHEN b.tipo_anexo_key = 'establos_pesebreras_tipo_20' THEN 'Establos_Pesebreras.Sencillo_Tipo_20'
+      WHEN b.tipo_anexo_key = 'establos_pesebreras_tipo_60' THEN 'Establos_Pesebreras.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'establos_pesebreras_tipo_80' THEN 'Establos_Pesebreras.Tecnificado_Tipo_80'
+      WHEN b.tipo_anexo_key = 'galpones_gallineros_tipo_40' THEN 'Galpones_Gallineros.Sencillo_Tipo_40'
+      WHEN b.tipo_anexo_key = 'galpones_gallineros_tipo_60' THEN 'Galpones_Gallineros.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'galpones_gallineros_tipo_80' THEN 'Galpones_Gallineros.Tecnificado_Tipo_80'
+      WHEN b.tipo_anexo_key = 'kioskos_tipo_40' THEN 'Kioscos.Sencillo_Tipo_40'
+      WHEN b.tipo_anexo_key = 'kioskos_tipo_60' THEN 'Kioscos.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'kioskos_tipo_80' THEN 'Kioscos.Plus_Tipo_80'
+      WHEN b.tipo_anexo_key = 'marquesinas_tipo_40' THEN 'Marquesinas_Patios_Cubiertos.Sencilla_Tipo_40'
+      WHEN b.tipo_anexo_key = 'marquesinas_tipo_60' THEN 'Marquesinas_Patios_Cubiertos.Media_Tipo_60'
+      WHEN b.tipo_anexo_key = 'marquesinas_tipo_80' THEN 'Marquesinas_Patios_Cubiertos.Plus_Tipo_80'
+      WHEN b.tipo_anexo_key = 'piscinas_tipo_40' THEN 'Piscinas.Pequena_Tipo_40'
+      WHEN b.tipo_anexo_key = 'piscinas_tipo_50' THEN 'Piscinas.Mediana_Tipo_50'
+      WHEN b.tipo_anexo_key = 'piscinas_tipo_60' THEN 'Piscinas.Grande_Tipo_60'
+      WHEN b.tipo_anexo_key = 'piscinas_tipo_80' THEN 'Piscinas.Prefabricada_Tipo_80'
+      WHEN b.tipo_anexo_key = 'pozos_tipo_40' THEN 'Pozos.Sencillo_Tipo_40'
+      WHEN b.tipo_anexo_key = 'pozos_tipo_60' THEN 'Pozos.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'secaderos_tipo_40' THEN 'Secaderos.Sencillo_Tipo_40'
+      WHEN b.tipo_anexo_key = 'secaderos_tipo_60' THEN 'Secaderos.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'secaderos_tipo_80' THEN 'Secaderos.Plus_Tipo_80'
+      WHEN b.tipo_anexo_key = 'silos_tipo_80' THEN 'Silos.En_Acero_Galvanizado_Tipo_80'
+      WHEN b.tipo_anexo_key = 'tanques_tipo_20' THEN 'Tanques.Sencillo_Sin_Revestir_Tipo_20'
+      WHEN b.tipo_anexo_key = 'tanques_tipo_40' THEN 'Tanques.Medio_Tipo_40'
+      WHEN b.tipo_anexo_key = 'tanques_tipo_60' THEN 'Tanques.Elevados_Plus_60'
+      WHEN b.tipo_anexo_key = 'toboganes_tipo_60' THEN 'Toboganes.Medio_Tipo_60'
+      WHEN b.tipo_anexo_key = 'toboganes_tipo_80' THEN 'Toboganes.Plus_Tipo_80'
+      WHEN b.tipo_anexo_key = 'torresenfriamiento_tipo_60' THEN 'Torres_Enfriamiento.Torres_Enfriamiento_Tipo_60'
+      ELSE NULL
+    END AS tipo_anexo_homol
+  FROM base b
+),
+eval AS (
+  SELECT
+    h.*,
+    COALESCE(h.tipo_anexo_homol, h.tipo_anexo) AS candidato,
+    lower(btrim(regexp_replace(replace(COALESCE(h.tipo_anexo_homol, h.tipo_anexo),'.','_'), '\s+',' ','g'))) AS candidato_l
+  FROM homol h
+),
+dom_anexo AS (
+  SELECT lower(btrim(regexp_replace(replace(v,'.','_'), '\s+',' ', 'g'))) AS tip_ok
+  FROM (VALUES
+    ('Ramadas_Cobertizos_Caneyes.Sencilla_Tipo_40'),
+    ('Ramadas_Cobertizos_Caneyes.Media_Tipo_60'),
+    ('Ramadas_Cobertizos_Caneyes.Plus_Tipo_80'),
+    ('Galpones_Gallineros.Sencillo_Tipo_40'),
+    ('Galpones_Gallineros.Medio_Tipo_60'),
+    ('Galpones_Gallineros.Tecnificado_Tipo_80'),
+    ('Establos_Pesebreras.Sencillo_Tipo_20'),
+    ('Establos_Pesebreras.Medio_Tipo_60'),
+    ('Establos_Pesebreras.Tecnificado_Tipo_80'),
+    ('Cocheras_Marraneras_Porquerizas.Sencilla_Tipo_20'),
+    ('Cocheras_Marraneras_Porquerizas.Media_Tipo_40'),
+    ('Cocheras_Marraneras_Porquerizas.Tecnificada_Tipo_80'),
+    ('Silos.En_concreto_Tipo_40'),
+    ('Silos.En_Acero_Galvanizado_Tipo_80'),
+    ('Piscinas.Pequena_Tipo_40'),
+    ('Piscinas.Mediana_Tipo_50'),
+    ('Corrales.Sencillo_Tipo_20'),
+    ('Piscinas.Grande_Tipo_60'),
+    ('Piscinas.Prefabricada_Tipo_80'),
+    ('Tanques.Soporte_Elevado_Sencillo_Tipo_10'),
+    ('Tanques.Sencillo_Sin_Revestir_Tipo_20'),
+    ('Tanques.Sencillo_Revestido_Tipo_30'),
+    ('Tanques.Medio_Tipo_40'),
+    ('Tanques.Plus_Tipo_50'),
+    ('Tanques.Elevados_Plus_60'),
+    ('Beneficiaderos.Sencilla_Tipo_40'),
+    ('Beneficiaderos.Medio_Tipo_60'),
+    ('Beneficiaderos.Plus_Tipo_80'),
+    ('Secaderos.Sencillo_Tipo_40'),
+    ('Secaderos.Medio_Tipo_60'),
+    ('Secaderos.Plus_Tipo_80'),
+    ('Kioscos.Sencillo_Tipo_40'),
+    ('Kioscos.Medio_Tipo_60'),
+    ('Kioscos.Plus_Tipo_80'),
+    ('Albercas_Baniaderas.Sencilla_Tipo_40'),
+    ('Albercas_Baniaderas.Medio_Tipo_60'),
+    ('Albercas_Baniaderas.Plus_Tipo_80'),
+    ('Corrales.Medio_Tipo_40'),
+    ('Corrales.Tecnificado_Tipo_80'),
+    ('Pozos.Sencillo_Tipo_40'),
+    ('Pozos.Medio_Tipo_60'),
+    ('Pozos.Profundo_Tipo_80'),
+    ('Torres_Enfriamiento.Torres_Enfiramiento_Tipo_40'),
+    ('Torres_Enfriamiento.Torres_Enfriamiento_Tipo_60'),
+    ('Muelles.Muelles_Madera_Tipo_20'),
+    ('Muelles.Muelles_Concreto_Tipo_40'),
+    ('Muelles.Muelles_Plus_Tipo_60'),
+    ('Canchas_Tenis.Tenis_1_Tipo_10'),
+    ('Canchas_Tenis.Tenis_2_Tipo_20'),
+    ('Canchas.Futbol_Tipo_20'),
+    ('Canchas.Futbol_Sintetica_Tipo_40'),
+    ('Canchas.Multifuncional_1_Tipo_60'),
+    ('Canchas.Multifuncional_Asfalto_Tipo_80'),
+    ('Toboganes.Basico_Tipo_40'),
+    ('Toboganes.Sencillo_Tipo_50'),
+    ('Toboganes.Medio_Tipo_60'),
+    ('Toboganes.Plus_Tipo_80'),
+    ('Marquesinas_Patios_Cubiertos.Sencilla_Tipo_40'),
+    ('Marquesinas_Patios_Cubiertos.Media_Tipo_60'),
+    ('Marquesinas_Patios_Cubiertos.Plus_Tipo_80'),
+    ('Coliseos.Sencillo_Tipo_40'),
+    ('Coliseos.Medio_Tipo_60'),
+    ('Coliseos.Plus_Tipo_80'),
+    ('Estadios.Estadios_Tipo_40'),
+    ('Estadios.Estadios_Tipo_60'),
+    ('Via_Ferrea.Trocha_Angosta_Tipo_60'),
+    ('Via_Ferrea.Trocha_Normal_Tipo_80'),
+    ('Carreteras.Via_Afirmado_Tipo_5'),
+    ('Carreteras.Via_Pavimento_Flexible_Tipo_10'),
+    ('Carreteras.Via_Terciaria_Tradicional_Tipo_20'),
+    ('Carreteras.Via_Pavimento_Rigido_Tipo_30'),
+    ('Cimientos_Estructura_Muros_Placabase.Placa_Muro_Tipo_80'),
+    ('Carreteras.Via_Placa_Huella_Sencilla_Tipo_40'),
+    ('Carreteras.Via_Placa_Huella_Plus_Tipo_50'),
+    ('Carreteras.Zona_Dura_Adoquin_Trafico_Liviano_Tipo_60'),
+    ('Carreteras.Zona_Dura_Adoquin_Trafico_Pesado_Tipo_70'),
+    ('Carreteras.Zona_Dura_Concreto_Trafico_Liviano_Tipo_80'),
+    ('Carreteras.Zona_Dura_Concreto_Trafico_Pesado_Tipo_90'),
+    ('Cimientos_Estructura_Muros_Placabase.Simples_Tipo_20'),
+    ('Cimientos_Estructura_Muros_Placabase.Simples_Placa_Tipo_40'),
+    ('Cimientos_Estructura_Muros_Placabase.Muro_Tipo_60'),
+    ('Construccion_Membrana_Arquitectonica.Tipo_Cobertizo_Tipo_20'),
+    ('Construccion_Membrana_Arquitectonica.Tipo_Cobertizo_Tipo_40'),
+    ('Hangar.Hangar_Simple_Tipo_40'),
+    ('Hangar.Hangar_a_dos_aguas_Tipo_60'),
+    ('Camaroneras.Camaronera_Sencilla_Tipo_40'),
+    ('Camaroneras.Camaronera_Tecnificada_Tipo_60'),
+    ('Contenedor.Contenedor_basico_Tipo_20'),
+    ('Contenedor.Contenedor_Intervenido_Tipo_40'),
+    ('Contenedor.Contenedor_plus_Tipo_60'),
+    ('Contenedor.Contenedor_frigorifico_Tipo_80'),
+    ('Estacion_Bombeo.Estacion_Bombeo_Tipo_20'),
+    ('Estacion_Sistema_Transporte.Sencilla_Tipo_20'),
+    ('Estacion_Sistema_Transporte.Media_Tipo_40'),
+    ('Estacion_Sistema_Transporte.Plus_Tipo_60'),
+    ('Lagunas_de_Oxidacion.Lagunas_de_Oxidacion_Sin_Revestir_Tipo_40'),
+    ('Lagunas_de_Oxidacion.Lagunas_de_Oxidacion_Revestidas_Tipo_60'),
+    ('Pergolas.Sencilla_Tipo_40'),
+    ('Pergolas.Media_Tipo_60'),
+    ('Pergolas.Plus_Tipo_80'),
+    ('Pista_Aeropuerto.Pista_Aeropuerto_Sencilla_Tipo_40'),
+    ('Pista_Aeropuerto.Pista_Aeropuerto_Media_Tipo_60'),
+    ('Pista_Aeropuerto.Pista_Aeropuerto_Plus_Tipo_80'),
+    ('Plazas_de_Toros.Madera_Tipo_20'),
+    ('Plazas_de_Toros.Concreto_Tipo_80'),
+    ('Estructuras_Especiales.Sencilla_Tipo_20'),
+    ('Estructuras_Especiales.Media_Tipo_40'),
+    ('Estructuras_Especiales.Plus_Tipo_60')
+  ) t(v)
+)
+SELECT
+  '788'::text                                AS regla,
+  'ILC_CaracteristicasUnidadConstruccion'::text     AS objeto,
+  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  e.uc_objectid                                     AS objectid,
+  e.uc_globalid                                     AS globalid,
+  e.predio_id,
+  e.numero_predial,
+  CASE
+    WHEN e.tipo_anexo IS NULL
+      THEN 'INCUMPLE: Tipo_UC = Anexo con tipo_anexo NULL.'
+    WHEN NOT EXISTS (SELECT 1 FROM dom_anexo d WHERE d.tip_ok = e.candidato_l)
+      THEN 'INCUMPLE: Tipo_UC = Anexo pero tipo_anexo no pertenece al dominio.'
+  END AS descripcion,
+  ('tipo_anexo='||COALESCE(e.tipo_anexo,''))::text AS valor,  -- sin “NULL”
+  FALSE AS cumple,
+  now()  AS created_at,
+  now()  AS updated_at
+FROM eval e
+WHERE e.tipo_anexo IS NULL
+   OR NOT EXISTS (SELECT 1 FROM dom_anexo d WHERE d.tip_ok = e.candidato_l)
+ORDER BY e.predio_id, e.uc_objectid;
+
+--790
+-- REGLA - INCUMPLE (Valor_Comercial = Terreno + UnidadesC y > 0)
+DROP TABLE IF EXISTS reglas.regla_790;
+
+CREATE TABLE reglas.regla_790 AS
+WITH av AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    btrim(e.id_operacion_predio)                      AS id_operacion,
+    e.valor_comercial::numeric(38,8)                  AS vc,
+    e.valor_comercial_terreno::numeric(38,8)          AS vct,
+    e.valor_comercial_total_unidadesc::numeric(38,8)  AS vcu
+  FROM preprod.ilc_estructuraavaluo e
+),
+pr AS (
+  SELECT
+    btrim(p.id_operacion)                         AS id_operacion,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+base AS (
+  SELECT
+    a.objectid,
+    a.globalid,
+    a.id_operacion,
+    p.npn,
+    a.vc,
+    a.vct,
+    a.vcu,
+    (a.vct + a.vcu) AS suma,
+    abs(a.vc - (a.vct + a.vcu)) AS diff
+  FROM av a
+  LEFT JOIN pr p USING (id_operacion)
+)
+SELECT
+  '790'::text         AS regla,
+  'ILC_EstructuraAvaluo'::text         AS objeto,
+  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  b.objectid                           AS objectid,
+  b.globalid                           AS globalid,
+  b.id_operacion,
+  b.npn,
+  CASE
+    WHEN b.vc IS NULL OR b.vct IS NULL OR b.vcu IS NULL
+      THEN 'INCUMPLE: faltan valores (VC, Terreno o UnidadesC) y VC debe ser > 0.'
+    WHEN b.vc <= 0
+      THEN 'INCUMPLE: Valor_Comercial debe ser > 0.'
+    WHEN b.diff > 0.01
+      THEN 'INCUMPLE: VC ≠ VCT + VCU (tolerancia 0.01).'
+  END AS descripcion,
+  (
+    'valor_comercial='||COALESCE(b.vc::text,'')||
+    ', valor_comercial_terreno='||COALESCE(b.vct::text,'')||
+    ', valor_comercial_total_unidades='||COALESCE(b.vcu::text,'')||
+    ', suma='||COALESCE(b.suma::text,'')||
+    ', diferencia='||COALESCE((b.vc - (b.vct + b.vcu))::text,'')
+  )::text AS valor,
+  FALSE AS cumple,
+  now()  AS created_at,
+  now()  AS updated_at
+FROM base b
+WHERE
+     b.vc  IS NULL OR b.vct IS NULL OR b.vcu IS NULL
+  OR b.vc <= 0
+  OR b.diff > 0.01
+ORDER BY b.id_operacion, b.objectid;
+
+--791
+-- REGLA - INCUMPLE (Avaluo_Catastral = Terreno + Total_Unidades y > 0)
+DROP TABLE IF EXISTS reglas.regla_791;
+
+CREATE TABLE reglas.regla_791 AS
+WITH av AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    btrim(e.id_operacion_predio)                       AS id_operacion,
+    e.avaluo_catastral::numeric(38,8)                  AS ac,
+    e.avaluo_catastral_terreno::numeric(38,8)          AS act,
+    e.avaluo_catastral_total_unidades::numeric(38,8)   AS actu
+  FROM preprod.ilc_estructuraavaluo e
+),
+pr AS (
+  SELECT
+    btrim(p.id_operacion)                         AS id_operacion,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+base AS (
+  SELECT
+    a.objectid,
+    a.globalid,
+    a.id_operacion,
+    p.npn,
+    a.ac,
+    a.act,
+    a.actu,
+    (a.act + a.actu) AS suma,
+    abs(a.ac - (a.act + a.actu)) AS diff
+  FROM av a
+  LEFT JOIN pr p USING (id_operacion)
+),
+miss AS (
+  SELECT
+    b.*,
+    ((CASE WHEN b.ac  IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.act IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.actu IS NULL THEN 1 ELSE 0 END)) AS miss_cnt,
+    concat_ws(', ',
+      CASE WHEN b.ac  IS NULL THEN 'avaluo_catastral' END,
+      CASE WHEN b.act IS NULL THEN 'avaluo_catastral_terreno' END,
+      CASE WHEN b.actu IS NULL THEN 'avaluo_catastral_total_unidades' END
+    ) AS miss_list
+  FROM base b
+)
+SELECT
+  '791'::text       AS regla,
+  'ILC_EstructuraAvaluo'::text        AS objeto,
+  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  m.objectid                          AS objectid,
+  m.globalid                          AS globalid,
+  m.id_operacion,
+  m.npn,
+  CASE
+    WHEN m.miss_cnt > 0
+      THEN 'INCUMPLE: faltan valores (AC, Terreno o Total_Unidades) y AC debe ser > 0.'
+    WHEN m.ac <= 0
+      THEN 'INCUMPLE: Avaluo_Catastral debe ser > 0.'
+    WHEN m.diff > 0.01
+      THEN 'INCUMPLE: Avaluo_Catastral ≠ Terreno + Total_Unidades (tolerancia 0.01).'
+  END AS descripcion,
+  CASE
+    WHEN m.miss_cnt > 0
+      THEN (CASE WHEN m.miss_cnt = 1 THEN 'falta=' ELSE 'faltan=' END) || m.miss_list
+    WHEN m.ac > 0 AND m.diff > 0.01
+      THEN 'diferencia=' || (m.ac - (m.act + m.actu))::text
+    WHEN m.ac <= 0
+      THEN 'avaluo_catastral=' || COALESCE(m.ac::text,'')
+  END::text AS valor,
+  FALSE AS cumple,
+  now() AS created_at,
+  now() AS updated_at
+FROM miss m
+WHERE
+     m.miss_cnt > 0           -- faltantes
+  OR m.ac <= 0                -- AC debe ser > 0
+  OR m.diff > 0.01            -- suma no cuadra (tol 0.01)
+ORDER BY m.id_operacion, m.objectid;
+
+--792
+-- REGLA - INCUMPLE (Catastral dentro de [60%,100%] del Comercial y todos > 0)
+DROP TABLE IF EXISTS reglas.regla_792;
+
+CREATE TABLE reglas.regla_792 AS
+WITH av AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    btrim(e.id_operacion_predio)                       AS id_operacion,
+    e.valor_comercial::numeric(38,8)                   AS vc,
+    e.valor_comercial_terreno::numeric(38,8)           AS vct,
+    e.valor_comercial_total_unidadesc::numeric(38,8)   AS vcu,
+    e.avaluo_catastral::numeric(38,8)                  AS ac,
+    e.avaluo_catastral_terreno::numeric(38,8)          AS act,
+    e.avaluo_catastral_total_unidades::numeric(38,8)   AS actu
+  FROM preprod.ilc_estructuraavaluo e
+),
+pr AS (
+  SELECT
+    btrim(p.id_operacion)                         AS id_operacion,
+    btrim(p.numero_predial_nacional)::varchar(30) AS npn
+  FROM preprod.ilc_predio p
+),
+base AS (
+  SELECT
+    a.objectid,
+    a.globalid,
+    a.id_operacion,
+    p.npn,
+    a.vc, a.vct, a.vcu,
+    a.ac, a.act, a.actu,
+    -- límites
+    (0.6*a.vc)  AS vc_lo,   a.vc       AS vc_hi,
+    (0.6*a.vct) AS vct_lo,  a.vct      AS vct_hi,
+    (0.6*a.vcu) AS vcu_lo,  a.vcu      AS vcu_hi
+  FROM av a
+  LEFT JOIN pr p USING (id_operacion)
+),
+miss AS (
+  SELECT
+    b.*,
+    -- faltantes
+    ((CASE WHEN b.vc  IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.vct IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.vcu IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.ac  IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.act IS NULL THEN 1 ELSE 0 END) +
+     (CASE WHEN b.actu IS NULL THEN 1 ELSE 0 END)) AS miss_cnt,
+    concat_ws(', ',
+      CASE WHEN b.vc  IS NULL THEN 'valor_comercial' END,
+      CASE WHEN b.vct IS NULL THEN 'valor_comercial_terreno' END,
+      CASE WHEN b.vcu IS NULL THEN 'valor_comercial_total_unidades' END,
+      CASE WHEN b.ac  IS NULL THEN 'avaluo_catastral' END,
+      CASE WHEN b.act IS NULL THEN 'avaluo_catastral_terreno' END,
+      CASE WHEN b.actu IS NULL THEN 'avaluo_catastral_total_unidades' END
+    ) AS miss_list,
+    -- no positivos
+    ((CASE WHEN b.vc  <= 0 THEN 1 ELSE 0 END) +
+     (CASE WHEN b.vct <= 0 THEN 1 ELSE 0 END) +
+     (CASE WHEN b.vcu <= 0 THEN 1 ELSE 0 END) +
+     (CASE WHEN b.ac  <= 0 THEN 1 ELSE 0 END) +
+     (CASE WHEN b.act <= 0 THEN 1 ELSE 0 END) +
+     (CASE WHEN b.actu <= 0 THEN 1 ELSE 0 END)) AS nonpos_cnt,
+    concat_ws(', ',
+      CASE WHEN b.vc  <= 0 THEN 'valor_comercial' END,
+      CASE WHEN b.vct <= 0 THEN 'valor_comercial_terreno' END,
+      CASE WHEN b.vcu <= 0 THEN 'valor_comercial_total_unidades' END,
+      CASE WHEN b.ac  <= 0 THEN 'avaluo_catastral' END,
+      CASE WHEN b.act <= 0 THEN 'avaluo_catastral_terreno' END,
+      CASE WHEN b.actu <= 0 THEN 'avaluo_catastral_total_unidades' END
+    ) AS nonpos_list
+  FROM base b
+),
+chk AS (
+  SELECT
+    m.*,
+    -- banderas de banda (solo relevantes si no hay faltantes ni no-positivos)
+    (m.ac  < m.vc_lo)  AS total_bajo,
+    (m.ac  > m.vc_hi)  AS total_alto,
+    (m.act < m.vct_lo) AS terreno_bajo,
+    (m.act > m.vct_hi) AS terreno_alto,
+    (m.actu < m.vcu_lo) AS unidades_bajo,
+    (m.actu > m.vcu_hi) AS unidades_alto
+  FROM miss m
+)
+SELECT
+  '792'::text            AS regla,
+  'ILC_EstructuraAvaluo'::text        AS objeto,
+  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  c.objectid                          AS objectid,
+  c.globalid                          AS globalid,
+  c.id_operacion,
+  c.npn,
+  CASE
+    WHEN c.miss_cnt > 0
+      THEN 'INCUMPLE: faltan valores para validar y todos deben ser > 0.'
+    WHEN c.nonpos_cnt > 0
+      THEN 'INCUMPLE: todos los valores deben ser > 0.'
+    WHEN c.total_bajo OR c.total_alto OR c.terreno_bajo OR c.terreno_alto OR c.unidades_bajo OR c.unidades_alto
+      THEN 'INCUMPLE: fuera de la banda [60%,100%] del valor comercial.'
+  END AS descripcion,
+  -- valor minimalista: faltantes / no-positivos / diferencias a los límites
+  CASE
+    WHEN c.miss_cnt > 0
+      THEN (CASE WHEN c.miss_cnt = 1 THEN 'faltan=' ELSE 'faltan=' END) || c.miss_list
+    WHEN c.nonpos_cnt > 0
+      THEN 'no_positivos=' || c.nonpos_list
+    ELSE concat_ws(', ',
+      CASE WHEN c.total_bajo  THEN 'total_bajo='   || (c.ac  - c.vc_lo)::text END,
+      CASE WHEN c.total_alto  THEN 'total_alto='   || (c.ac  - c.vc_hi)::text END,
+      CASE WHEN c.terreno_bajo THEN 'terreno_bajo='|| (c.act - c.vct_lo)::text END,
+      CASE WHEN c.terreno_alto THEN 'terreno_alto='|| (c.act - c.vct_hi)::text END,
+      CASE WHEN c.unidades_bajo THEN 'unidades_bajo='|| (c.actu - c.vcu_lo)::text END,
+      CASE WHEN c.unidades_alto THEN 'unidades_alto='|| (c.actu - c.vcu_hi)::text END
+    )
+  END::text AS valor,
+  FALSE AS cumple,
+  now() AS created_at,
+  now() AS updated_at
+FROM chk c
+WHERE
+      c.miss_cnt > 0
+   OR c.nonpos_cnt > 0
+   OR c.total_bajo OR c.total_alto OR c.terreno_bajo OR c.terreno_alto OR c.unidades_bajo OR c.unidades_alto
+ORDER BY c.id_operacion, c.objectid;
