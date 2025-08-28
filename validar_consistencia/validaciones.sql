@@ -18,25 +18,25 @@ WITH req AS (
     p.globalid,
     p.numero_predial_nacional,
     p.destinacion_economica
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.destinacion_economica)) IN
     ('comercial','educativo','habitacional','industrial','institucional','salubridad')
 ),
 uc AS (
   SELECT btrim(c.id_operacion_predio) AS id_operacion_predio, COUNT(*) AS n_uc
-  FROM preprod.cr_unidadconstruccion c
+  FROM preprod.t_cr_unidadconstruccion c
   GROUP BY 1
 )
 SELECT
   '691'                           AS regla,
-  'ILC_Predio'                                   AS objeto,
-  'preprod.ilc_predio'                           AS tabla,
+  't_ilc_Predio'                                   AS objeto,
+  'preprod.t_ilc_predio'                           AS tabla,
   r.objectid                                     AS objectid,
   r.globalid                                     AS globalid,
   r.id_operacion                                 AS predio_id,
   r.numero_predial_nacional                      AS numero_predial,
   'Destinación '||r.destinacion_economica||
-  ' sin CR_UnidadConstruccion asociada'          AS descripcion,
+  ' sin t_cr_UnidadConstruccion asociada'          AS descripcion,
   COALESCE(u.n_uc, 0)                            AS valor,
   FALSE                                          AS cumple,
   NOW()                                          AS created_at,
@@ -56,13 +56,13 @@ WITH p AS (
     id_operacion,
     globalid,
     numero_predial_nacional AS npn
-  FROM preprod.ilc_predio
+  FROM preprod.t_ilc_predio
   WHERE numero_predial_nacional ~ '^[0-9]{30}$'   -- solo NPN válidos (30 dígitos)
 )
 SELECT
   '681'::text                                 AS regla,
-  'ILC_Predio'::text                          AS objeto,
-  'preprod.ilc_predio'::text                  AS tabla,
+  't_ilc_Predio'::text                          AS objeto,
+  'preprod.t_ilc_predio'::text                  AS tabla,
   p.objectid                                  AS objectid,
   p.globalid                                  AS globalid,
   p.id_operacion                              AS predio_id,
@@ -89,7 +89,7 @@ WITH agg AS (
     btrim(matricula_inmobiliaria) AS mi,
     COUNT(DISTINCT numero_predial_nacional) AS n_npn,
     ARRAY_AGG(DISTINCT numero_predial_nacional ORDER BY numero_predial_nacional) AS npn_distintos
-  FROM preprod.ilc_predio
+  FROM preprod.t_ilc_predio
   WHERE matricula_inmobiliaria IS NOT NULL
     AND btrim(matricula_inmobiliaria) <> ''
   GROUP BY 1
@@ -104,13 +104,13 @@ viol AS (
     p.numero_predial_nacional,
     a.n_npn,
     a.npn_distintos
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   JOIN agg a ON btrim(p.matricula_inmobiliaria) = a.mi
 )
 SELECT
   '685'::text                                 AS regla,
-  'ILC_Predio'::text                          AS objeto,
-  'preprod.ilc_predio'::text                  AS tabla,
+  't_ilc_Predio'::text                          AS objeto,
+  'preprod.t_ilc_predio'::text                  AS tabla,
   v.objectid                                  AS objectid,
   v.globalid                                  AS globalid,
   v.id_operacion                              AS predio_id,
@@ -136,12 +136,12 @@ WITH t AS (
     p.numero_predial_nacional,
     p.matricula_inmobiliaria,
     btrim(coalesce(p.matricula_inmobiliaria, '')) AS mi_trim
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 )
 SELECT
   '686'::text                                        AS regla,
-  'ILC_Predio'::text                                 AS objeto,
-  'preprod.ilc_predio'::text                         AS tabla,
+  't_ilc_Predio'::text                                 AS objeto,
+  'preprod.t_ilc_predio'::text                         AS tabla,
   t.objectid                                         AS objectid,
   t.globalid                                         AS globalid,
   t.id_operacion                                     AS predio_id,
@@ -174,7 +174,7 @@ WITH t AS (
     p.numero_predial_nacional,
     btrim(coalesce(p.matricula_inmobiliaria,'')) AS mi,
     btrim(coalesce(p.codigo_orip,''))            AS orip
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 viol AS (
   SELECT
@@ -189,8 +189,8 @@ viol AS (
 )
 SELECT
   '688'::text                                    AS regla,
-  'ILC_Predio'::text                             AS objeto,
-  'preprod.ilc_predio'::text                     AS tabla,
+  't_ilc_Predio'::text                             AS objeto,
+  'preprod.t_ilc_predio'::text                     AS tabla,
   v.objectid                                     AS objectid,
   v.globalid                                     AS globalid,
   v.id_operacion                                 AS predio_id,
@@ -212,7 +212,7 @@ WITH req AS (  -- predios a los que NO se les permite UC
     p.id_operacion,
     p.numero_predial_nacional,
     lower(btrim(p.destinacion_economica)) AS de
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.destinacion_economica)) IN (
     'lote_urbanizable_no_construido',
     'lote_rural'
@@ -221,13 +221,13 @@ WITH req AS (  -- predios a los que NO se les permite UC
 uc AS (       
   SELECT btrim(id_operacion_predio) AS id_operacion_predio,
          COUNT(*) AS n_uc
-  FROM preprod.cr_unidadconstruccion
+  FROM preprod.t_cr_unidadconstruccion
   GROUP BY 1
 )
 SELECT
   '689'::text                                   AS regla,          -- pon el ID que uses
-  'ILC_Predio'::text                            AS objeto,
-  'preprod.ilc_predio'::text                    AS tabla,
+  't_ilc_Predio'::text                            AS objeto,
+  'preprod.t_ilc_predio'::text                    AS tabla,
   r.objectid                                    AS objectid,
   r.globalid                                    AS globalid,
   r.id_operacion                                AS predio_id,
@@ -252,14 +252,14 @@ WITH base AS (  -- predios con NPN válido y datos clave
     p.numero_predial_nacional AS npn,
     lower(btrim(p.destinacion_economica)) AS de,
     lower(btrim(p.condicion_predio))      AS cp
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE p.numero_predial_nacional ~ '^[0-9]{30}$'
 ),
 -- Conteo de Unidades de Construcción por predio (id_operacion)
 uc AS (
   SELECT btrim(c.id_operacion_predio) AS id_operacion_predio,
          COUNT(*) AS n_uc
-  FROM preprod.cr_unidadconstruccion c
+  FROM preprod.t_cr_unidadconstruccion c
   GROUP BY 1
 ),
 -- Área de Terreno por predio (suma de áreas; calcula en SRID 9377).
@@ -275,7 +275,7 @@ terr AS (
         ELSE ST_Area(ST_Transform(t.shape, 9377))
       END
     ) AS area_m2
-  FROM preprod.cr_terreno t
+  FROM preprod.t_cr_terreno t
   WHERE t.shape IS NOT NULL
   GROUP BY 1
 ),
@@ -334,8 +334,8 @@ out AS (
 )
 SELECT
   '690'::text                                   AS regla,
-  'ILC_Predio'::text                            AS objeto,
-  'preprod.ilc_predio'::text                    AS tabla,
+  't_ilc_Predio'::text                            AS objeto,
+  'preprod.t_ilc_predio'::text                    AS tabla,
   o.objectid                                    AS objectid,
   o.globalid                                    AS globalid,
   o.id_operacion                                AS predio_id,
@@ -360,7 +360,7 @@ WITH base AS (
     p.id_operacion,
     p.numero_predial_nacional AS npn,
     substring(p.numero_predial_nacional FROM 19 FOR 3)::int AS a_num
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE left(p.numero_predial_nacional, 17) = '13836000200000002'
     AND substring(p.numero_predial_nacional FROM 18 FOR 1) = 'A'
     AND substring(p.numero_predial_nacional FROM 19 FOR 3) ~ '^[0-9]{3}$'
@@ -403,14 +403,14 @@ WITH base AS (
     p.area_registral_m2,
     (p.codigo_orip IS NULL OR btrim(p.codigo_orip) = '')                       AS orip_vacia,
     (p.matricula_inmobiliaria IS NULL OR btrim(p.matricula_inmobiliaria) = '') AS mi_vacia
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 )
 
 -- Caso 1: ORIP y Matrícula vacías → área debe ser exactamente 0
 SELECT
   '692'::text                        AS regla,
-  'ILC_Predio'::text                 AS objeto,
-  'preprod.ilc_predio'::text         AS tabla,
+  't_ilc_Predio'::text                 AS objeto,
+  'preprod.t_ilc_predio'::text         AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -429,8 +429,8 @@ UNION ALL
 -- Caso 2: Área > 0 → ORIP y Matrícula deben estar diligenciados
 SELECT
   '692',
-  'ILC_Predio',
-  'preprod.ilc_predio',
+  't_ilc_Predio',
+  'preprod.t_ilc_predio',
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -449,8 +449,8 @@ UNION ALL
 -- Caso 3: Con ORIP y Matrícula → área no puede ser 0, NULL ni vacío (' ')
 SELECT
   '692',
-  'ILC_Predio',
-  'preprod.ilc_predio',
+  't_ilc_Predio',
+  'preprod.t_ilc_predio',
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -470,7 +470,7 @@ ORDER BY objectid;
 SELECT descripcion, COUNT(*) FROM reglas.regla_692 GROUP BY descripcion ORDER BY 2 DESC;
 
 ---693
--- Regla 693: Relación entre CR_Terreno ↔ ILC_Predio (SIN NOVEDADES)
+-- Regla 693: Relación entre t_cr_Terreno ↔ t_ilc_Predio (SIN NOVEDADES)
 -- Valida que los predios con condición específica tengan exactamente 1 terreno,
 -- salvo la excepción de predios informales en altura.
 
@@ -504,7 +504,7 @@ WITH base AS (
        AND substring(p.numero_predial_nacional FROM 27 FOR 4) <> '0000'
       THEN TRUE ELSE FALSE
     END AS es_informal_en_altura
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 join_terreno AS (
   SELECT 
@@ -517,7 +517,7 @@ join_terreno AS (
     b.es_informal_en_altura,
     COUNT(t.objectid) AS n_terrenos
   FROM base b
-  LEFT JOIN preprod.cr_terreno t 
+  LEFT JOIN preprod.t_cr_terreno t 
     ON btrim(t.id_operacion_predio) = btrim(b.id_operacion)
   GROUP BY b.objectid, b.globalid, b.id_operacion, b.npn, b.condicion_predio,
            b.es_condicion_validada, b.es_informal_en_altura
@@ -528,8 +528,8 @@ join_terreno AS (
 -- ==========================
 SELECT
   '693'::text                   AS regla,
-  'ILC_Predio'::text            AS objeto,
-  'preprod.ilc_predio'::text    AS tabla,
+  't_ilc_Predio'::text            AS objeto,
+  'preprod.t_ilc_predio'::text    AS tabla,
   j.objectid,
   j.globalid,
   j.id_operacion,
@@ -571,12 +571,12 @@ WITH base AS (
     p.numero_predial_nacional   AS npn,
     substring(p.numero_predial_nacional FROM 6 FOR 2)  AS npn_6_7,
     substring(p.numero_predial_nacional FROM 10 FOR 4) AS npn_10_13
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 )
 SELECT
   '675'::text                AS regla,
-  'ILC_Predio'::text         AS objeto,
-  'preprod.ilc_predio'::text AS tabla,
+  't_ilc_Predio'::text         AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -616,11 +616,11 @@ pred AS (
     p.globalid,
     btrim(p.id_operacion)       AS id_operacion,
     p.numero_predial_nacional   AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 )
 SELECT
   '713'::text                   AS regla,
-  'ILC_Predio'::text            AS objeto,
+  't_ilc_Predio'::text            AS objeto,
   'preprod.extdireccion'::text  AS tabla,
   pr.objectid,
   pr.globalid,
@@ -664,7 +664,7 @@ pred AS (
   SELECT
     btrim(p.id_operacion) AS id_operacion,
     p.numero_predial_nacional AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 chk AS (
   SELECT
@@ -741,7 +741,7 @@ pred AS (
   SELECT
     btrim(p.id_operacion) AS id_operacion,
     p.numero_predial_nacional AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 chk AS (
   SELECT
@@ -847,7 +847,7 @@ WITH predio AS (
     btrim(p.id_operacion)                  AS id_operacion,
     p.numero_predial_nacional              AS npn,
     substring(p.numero_predial_nacional FROM 6 FOR 2) AS d67
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE p.numero_predial_nacional IS NOT NULL
 ),
 -- Normalizamos tipo_direccion y agregamos por predio
@@ -935,13 +935,13 @@ WITH base AS (
     p.numero_predial_nacional      AS npn,
     lower(btrim(p.condicion_predio)) AS condicion_predio,
     substring(p.numero_predial_nacional FROM 22 FOR 9) AS npn_22_30
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE p.numero_predial_nacional IS NOT NULL
 )
 SELECT
   '676'::text                     AS regla,
-  'ILC_Predio'::text              AS objeto,
-  'preprod.ilc_predio'::text      AS tabla,
+  't_ilc_Predio'::text              AS objeto,
+  'preprod.t_ilc_predio'::text      AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -968,7 +968,7 @@ WITH unidades AS (
     btrim(p.id_operacion)             AS id_operacion,
     p.numero_predial_nacional         AS npn,
     lower(btrim(p.condicion_predio))  AS cp
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN (
     'ph.unidad_predial','ph_unidad_predial',
     'condominio.unidad_predial','condominio_unidad_predial'
@@ -1067,7 +1067,7 @@ WITH base AS (
     substring(p.numero_predial_nacional FROM 27 FOR 4) AS s27_30,
     -- Formato general (30 dígitos)
     (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN
     ('ph.unidad_predial','ph_unidad_predial','ph unidad predial')
 ),
@@ -1091,8 +1091,8 @@ viol AS (
 )
 SELECT
   '677'::text                    AS regla,
-  'ILC_Predio'::text             AS objeto,
-  'preprod.ilc_predio'::text     AS tabla,
+  't_ilc_Predio'::text             AS objeto,
+  'preprod.t_ilc_predio'::text     AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -1133,7 +1133,7 @@ WITH base AS (
     substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
     substring(p.numero_predial_nacional FROM 23 FOR 8) AS s23_30,
     (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN
     ('ph.matriz','ph_matriz','ph matriz')
 ),
@@ -1151,8 +1151,8 @@ viol AS (
 )
 SELECT
   '676'::text                    AS regla,
-  'ILC_Predio'::text             AS objeto,
-  'preprod.ilc_predio'::text     AS tabla,
+  't_ilc_Predio'::text             AS objeto,
+  'preprod.t_ilc_predio'::text     AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -1192,7 +1192,7 @@ WITH base AS (
     substring(p.numero_predial_nacional FROM 27 FOR 4) AS s27_30,
     -- formato general (30 dígitos)
     (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN
     ('parque_cementerio.unidad_predial','parque_cementerio_unidad_predial')
 ),
@@ -1216,8 +1216,8 @@ viol AS (
 )
 SELECT
   '678'::text                    AS regla,
-  'ILC_Predio'::text             AS objeto,
-  'preprod.ilc_predio'::text     AS tabla,
+  't_ilc_Predio'::text             AS objeto,
+  'preprod.t_ilc_predio'::text     AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -1257,7 +1257,7 @@ WITH base AS (
     substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
     substring(p.numero_predial_nacional FROM 23 FOR 8) AS s23_30,
     (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('condominio.matriz','condominio_matriz','condominio matriz')
 ),
 viol AS (
@@ -1272,8 +1272,8 @@ viol AS (
 )
 SELECT
   '679'::text                    AS regla,
-  'ILC_Predio'::text             AS objeto,
-  'preprod.ilc_predio'::text     AS tabla,
+  't_ilc_Predio'::text             AS objeto,
+  'preprod.t_ilc_predio'::text     AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -1307,7 +1307,7 @@ WITH base AS (
     substring(p.numero_predial_nacional FROM 22 FOR 5)  AS s22_26,
     substring(p.numero_predial_nacional FROM 27 FOR 4)  AS s27_30,
     (p.numero_predial_nacional ~ '^[0-9]{30}$') AS ok_formato
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('condominio.unidad_predial','condominio_unidad_predial')
 ),
 viol AS (
@@ -1323,8 +1323,8 @@ viol AS (
 )
 SELECT
   '680'::text                        AS regla,
-  'ILC_Predio'::text                 AS objeto,
-  'preprod.ilc_predio'::text         AS tabla,
+  't_ilc_Predio'::text                 AS objeto,
+  'preprod.t_ilc_predio'::text         AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -1356,7 +1356,7 @@ WITH predio AS (
     p.numero_predial_nacional           AS npn,
     substring(p.numero_predial_nacional FROM 6 FOR 2) AS d67,
     p.matricula_inmobiliaria
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 derecho AS (
   SELECT
@@ -1365,7 +1365,7 @@ derecho AS (
     d.globalid                          AS der_gid,
     d.tipo,
     (d.fecha_inicio_tenencia)::date     AS fecha_inicio_tenencia
-  FROM preprod.ilc_derecho d
+  FROM preprod.t_ilc_derecho d
 ),
 base AS (
   SELECT
@@ -1422,8 +1422,8 @@ viol AS (
 )
 SELECT
   '729'::text                           AS regla,
-  'ILC_Derecho'::text                   AS objeto,
-  'preprod.ilc_derecho'::text           AS tabla,
+  't_ilc_Derecho'::text                   AS objeto,
+  'preprod.t_ilc_derecho'::text           AS tabla,
   v.predio_oid                          AS objectid,
   v.predio_gid                          AS globalid,
   v.id_operacion_predio                 AS id_operacion,
@@ -1455,7 +1455,7 @@ WITH predio AS (
     btrim(p.id_operacion)     AS id_operacion_predio,
     p.numero_predial_nacional AS npn,
     p.condicion_predio
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN (
     'ph_matriz',
     'condominio_matriz',
@@ -1468,7 +1468,7 @@ interesado AS (
     i.globalid               AS int_gid,
     btrim(i.id_operacion_predio) AS id_operacion_predio,
     i.tipo                   AS tipo_interesado
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 ),
 base AS (
   SELECT
@@ -1486,8 +1486,8 @@ base AS (
 )
 SELECT
   'Predio_Matriz_Persona_Juridica'::text AS regla,
-  'ILC_Predio / ILC_Interesado'::text    AS objeto,
-  'preprod.ilc_predio'::text             AS tabla,
+  't_ilc_Predio / t_ilc_Interesado'::text    AS objeto,
+  'preprod.t_ilc_predio'::text             AS tabla,
   b.predio_oid                           AS objectid,
   b.predio_gid                           AS globalid,
   b.id_operacion_predio                  AS id_operacion,
@@ -1519,7 +1519,7 @@ WITH pr AS (
     p.numero_predial_nacional                  AS npn,
     lower(btrim(p.condicion_predio))           AS cp,
     btrim(p.tipo)                               AS tipo_predio
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('via','vía','bien_uso_publico','bien_uso_público')
 ),
 der AS (
@@ -1527,7 +1527,7 @@ der AS (
     btrim(d.id_operacion_predio) AS id_operacion,
     COUNT(*)                     AS n_derechos,
     SUM( CASE WHEN lower(btrim(d.tipo)) = 'dominio' THEN 1 ELSE 0 END ) AS n_dominio
-  FROM preprod.ilc_derecho d
+  FROM preprod.t_ilc_derecho d
   GROUP BY 1
 ),
 eval AS (
@@ -1558,8 +1558,8 @@ viol AS (
 )
 SELECT
   '739'::text                   AS regla,
-  'ILC_Predio / ILC_Derecho'::text AS objeto,
-  'preprod.ilc_predio'::text    AS tabla,
+  't_ilc_Predio / t_ilc_Derecho'::text AS objeto,
+  'preprod.t_ilc_predio'::text    AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -1603,10 +1603,10 @@ WITH base AS (
     f.globalid          AS fuente_gid,
     f.fecha_documento_fuente::date AS fecha_fuente
 
-  FROM preprod.ilc_derecho d
-  JOIN preprod.ilc_predio p 
+  FROM preprod.t_ilc_derecho d
+  JOIN preprod.t_ilc_predio p 
     ON btrim(p.id_operacion) = btrim(d.id_operacion_predio)
-  LEFT JOIN preprod.ilc_fuenteadministrativa f 
+  LEFT JOIN preprod.t_ilc_fuenteadministrativa f 
     ON f.id_operacion_predio = d.id_operacion_predio
   WHERE lower(btrim(d.tipo)) = 'dominio'
     AND NULLIF(btrim(p.matricula_inmobiliaria), '') IS NOT NULL
@@ -1614,8 +1614,8 @@ WITH base AS (
 )
 SELECT
   '740'::text                   AS regla,
-  'ILC_Derecho / ILC_FuenteAdministrativa'::text AS objeto,
-  'preprod.ilc_derecho'::text   AS tabla,
+  't_ilc_Derecho / t_ilc_FuenteAdministrativa'::text AS objeto,
+  'preprod.t_ilc_derecho'::text   AS tabla,
   b.derecho_oid                 AS objectid,
   b.derecho_gid                 AS globalid,
   b.id_operacion,
@@ -1648,7 +1648,7 @@ WITH predios AS (
     btrim(p.id_operacion) AS id_operacion,
     p.matricula_inmobiliaria AS mi_raw,
     CASE WHEN NULLIF(btrim(p.matricula_inmobiliaria),'') IS NOT NULL THEN TRUE ELSE FALSE END AS mi_diligenciada
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 predios_mi AS (
   SELECT * FROM predios WHERE mi_diligenciada
@@ -1660,7 +1660,7 @@ fuentes AS (
     NULLIF(btrim(f.tipo),'')   AS tipo,
     NULLIF(btrim(f.numero_fuente),'') AS numero_fuente,
     NULLIF(btrim(f.ente_emisor),'')   AS ente_emisor
-  FROM preprod.ilc_fuenteadministrativa f
+  FROM preprod.t_ilc_fuenteadministrativa f
 ),
 visita AS (
   SELECT
@@ -1697,8 +1697,8 @@ agg AS (
 )
 SELECT
   '741'::text AS regla,
-  'ILC_Predio'::text AS objeto,
-  'preprod.ilc_predio'::text AS tabla,
+  't_ilc_Predio'::text AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   a.objectid,
   a.globalid,
   a.id_operacion,
@@ -1729,7 +1729,7 @@ WITH base AS (
     upper(btrim(i.tipo_documento))      AS tipo_doc_norm,
     i.tipo,
     i.tipo_documento
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 ),
 viol AS (
   SELECT
@@ -1740,8 +1740,8 @@ viol AS (
 )
 SELECT
   '742'::text                            AS regla,
-  'ILC_Interesado'::text                 AS objeto,
-  'preprod.ilc_interesado'::text         AS tabla,
+  't_ilc_Interesado'::text                 AS objeto,
+  'preprod.t_ilc_interesado'::text         AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio                  AS id_operacion,
@@ -1766,12 +1766,12 @@ WITH base AS (
     lower(btrim(i.tipo))                AS tipo_norm,
     upper(btrim(i.tipo_documento))      AS tipo_doc_norm,
     i.tipo_documento
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 )
 SELECT
   '743'::text                    AS regla,
-  'ILC_Interesado'::text         AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text         AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion_predio          AS id_operacion,
@@ -1798,7 +1798,7 @@ WITH base AS (
     btrim(i.id_operacion_predio)   AS id_operacion_predio,
     upper(btrim(i.tipo_documento)) AS tipo_doc_norm,
     btrim(i.documento_identidad)   AS doc_id
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo_documento)) <> 'NIT'
 ),
 valid AS (
@@ -1842,8 +1842,8 @@ viol AS (
 )
 SELECT
   '744'::text                     AS regla,
-  'ILC_Interesado'::text          AS objeto,
-  'preprod.ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text          AS objeto,
+  'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
@@ -1867,7 +1867,7 @@ WITH base AS (
     btrim(i.id_operacion_predio)   AS id_operacion_predio,
     upper(btrim(i.tipo_documento)) AS tipo_doc_norm,
     btrim(i.documento_identidad)   AS doc_id
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo_documento)) = 'NIT'
 ),
 valid AS (
@@ -1896,8 +1896,8 @@ viol AS (
 )
 SELECT
   '745'::text                     AS regla,
-  'ILC_Interesado'::text          AS objeto,
-  'preprod.ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text          AS objeto,
+  'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
@@ -1924,7 +1924,7 @@ WITH base AS (
     btrim(i.segundo_nombre)        AS segundo_nombre,
     btrim(i.primer_apellido)       AS primer_apellido,
     btrim(i.segundo_apellido)      AS segundo_apellido
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
 ),
 viol AS (
@@ -1964,8 +1964,8 @@ viol AS (
 )
 SELECT
   '746'::text                     AS regla,
-  'ILC_Interesado'::text          AS objeto,
-  'preprod.ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text          AS objeto,
+  'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
@@ -1998,7 +1998,7 @@ WITH base AS (
     btrim(i.segundo_nombre)        AS segundo_nombre,
     btrim(i.primer_apellido)       AS primer_apellido,
     btrim(i.segundo_apellido)      AS segundo_apellido
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_JURIDICA'
 ),
 viol AS (
@@ -2023,8 +2023,8 @@ viol AS (
 )
 SELECT
   '747'::text                     AS regla,
-  'ILC_Interesado'::text          AS objeto,
-  'preprod.ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text          AS objeto,
+  'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
@@ -2055,8 +2055,8 @@ WITH base AS (
     p.tipo                         AS tipo_predio,
     NULLIF(btrim(p.matricula_inmobiliaria),'') AS matricula_inmobiliaria,
     p.numero_predial_nacional      AS npn
-  FROM preprod.ilc_derecho d
-  JOIN preprod.ilc_predio p
+  FROM preprod.t_ilc_derecho d
+  JOIN preprod.t_ilc_predio p
     ON p.id_operacion = d.id_operacion_predio
 ),
 viol AS (
@@ -2075,8 +2075,8 @@ viol AS (
 )
 SELECT
   '730'::text                     AS regla,
-  'ILC_Derecho'::text             AS objeto,
-  'preprod.ilc_derecho'::text     AS tabla,
+  't_ilc_Derecho'::text             AS objeto,
+  'preprod.t_ilc_derecho'::text     AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
@@ -2106,7 +2106,7 @@ WITH base AS (
     btrim(i.segundo_nombre)      AS segundo_nombre,
     btrim(i.primer_apellido)     AS primer_apellido,
     btrim(i.segundo_apellido)    AS segundo_apellido
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
 ),
 viol AS (
@@ -2122,8 +2122,8 @@ viol AS (
 )
 SELECT
   '748'::text AS regla,
-  'ILC_Interesado'::text AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio,
@@ -2152,7 +2152,7 @@ WITH base AS (
     i.primer_apellido,
     i.segundo_apellido,
     btrim(i.razon_social) AS razon_social
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 )
 , viol AS (
   SELECT
@@ -2174,8 +2174,8 @@ WITH base AS (
 )
 SELECT
   '749'::text AS regla,
-  'ILC_Interesado'::text AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio,
@@ -2201,7 +2201,7 @@ WITH base AS (
     btrim(i.id_operacion_predio) AS id_operacion_predio,
     upper(btrim(i.tipo)) AS tipo,
     btrim(i.sexo) AS sexo
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 )
 , viol AS (
   SELECT
@@ -2216,8 +2216,8 @@ WITH base AS (
 )
 SELECT
   '750'::text AS regla,
-  'ILC_Interesado'::text AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio,
@@ -2244,7 +2244,7 @@ WITH base AS (
     btrim(i.segundo_nombre)      AS segundo_nombre,
     btrim(i.primer_apellido)     AS primer_apellido,
     btrim(i.segundo_apellido)    AS segundo_apellido
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
 ),
 norm AS (
@@ -2337,8 +2337,8 @@ viol AS (
 )
 SELECT
   '751'::text                     AS regla,
-  'ILC_Interesado'::text          AS objeto,
-  'preprod.ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text          AS objeto,
+  'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
@@ -2373,7 +2373,7 @@ WITH base AS (
     upper(btrim(f.ente_emisor))               AS ente_norm,
     -- Para detectar 'ANT' como palabra y evitar falsos positivos tipo 'ANTONIO'
     (' '||upper(btrim(f.ente_emisor))||' ')   AS ente_padded
-  FROM preprod.ilc_fuenteadministrativa f
+  FROM preprod.t_ilc_fuenteadministrativa f
 ),
 marcados AS (
   SELECT
@@ -2417,8 +2417,8 @@ viol AS (
 )
 SELECT
   '752'::text                         AS regla,
-  'ILC_FuenteAdministrativa'::text    AS objeto,
-  'preprod.ilc_fuenteadministrativa'::text AS tabla,
+  't_ilc_FuenteAdministrativa'::text    AS objeto,
+  'preprod.t_ilc_fuenteadministrativa'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio               AS id_operacion,
@@ -2446,8 +2446,8 @@ WITH base AS (
         btrim(d.id_operacion_predio)   AS id_operacion_predio,
         btrim(lower(d.tipo))           AS derecho_tipo,
         btrim(lower(p.tipo))           AS predio_tipo
-    FROM preprod.ilc_derecho d
-    JOIN preprod.ilc_predio p
+    FROM preprod.t_ilc_derecho d
+    JOIN preprod.t_ilc_predio p
       ON p.id_operacion = d.id_operacion_predio
     WHERE lower(btrim(d.tipo)) = 'posesion'
 ),
@@ -2456,14 +2456,14 @@ viol AS (
         b.*,
         CASE 
           WHEN b.predio_tipo IS NULL OR b.predio_tipo <> 'privado'
-            THEN 'ILC_Derecho.Tipo=Posesion → ILC_Predio.Tipo debe ser "Privado"'
+            THEN 't_ilc_Derecho.Tipo=Posesion → t_ilc_Predio.Tipo debe ser "Privado"'
         END AS motivo
     FROM base b
 )
 SELECT
     '731'::text                       AS regla,
-    'ILC_Derecho'::text               AS objeto,
-    'preprod.ilc_derecho'::text       AS tabla,
+    't_ilc_Derecho'::text               AS objeto,
+    'preprod.t_ilc_derecho'::text       AS tabla,
     v.objectid,
     v.globalid,
     v.id_operacion_predio             AS id_operacion,
@@ -2490,7 +2490,7 @@ WITH base AS (
     p.globalid,
     btrim(p.id_operacion)        AS id_operacion_predio,
     p.numero_predial_nacional    AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 agg AS (
   SELECT
@@ -2500,19 +2500,19 @@ agg AS (
     b.npn,
     COUNT(i.objectid) AS n_interesados
   FROM base b
-  LEFT JOIN preprod.ilc_interesado i
+  LEFT JOIN preprod.t_ilc_interesado i
     ON b.id_operacion_predio = btrim(i.id_operacion_predio)
   GROUP BY b.objectid, b.globalid, b.id_operacion_predio, b.npn
 )
 SELECT
   '758'::text                   AS regla,
-  'ILC_Predio'::text           AS objeto,
-  'preprod.ilc_predio'::text   AS tabla,
+  't_ilc_Predio'::text           AS objeto,
+  'preprod.t_ilc_predio'::text   AS tabla,
   a.objectid,
   a.globalid,
   a.id_operacion_predio        AS id_operacion,
   a.npn,
-  'INCUMPLE: Todo ILC_Predio debe relacionar al menos un ILC_Interesado'::text AS descripcion,
+  'INCUMPLE: Todo t_ilc_Predio debe relacionar al menos un t_ilc_Interesado'::text AS descripcion,
   ('n_interesados='||a.n_interesados||', npn='||COALESCE(a.npn,'(null)'))::text AS valor,
   FALSE                        AS cumple,
   NOW()                        AS created_at,
@@ -2537,7 +2537,7 @@ WITH base AS (
     NULLIF(btrim(i.segundo_apellido),'')  AS segundo_apellido,
     NULLIF(btrim(i.razon_social),'')      AS razon_social,
     NULLIF(btrim(i.documento_identidad),'') AS documento_identidad
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 ),
 -- Agrupo por combinación de nombres y razón social
 agrupado AS (
@@ -2556,8 +2556,8 @@ agrupado AS (
 )
 SELECT
   '759'::text AS regla,
-  'ILC_Interesado'::text AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   NULL::bigint AS objectid,
   NULL::uuid   AS globalid,
   NULL::text   AS id_operacion,
@@ -2590,7 +2590,7 @@ WITH base AS (
     i.globalid,
     btrim(i.id_operacion_predio) AS id_operacion_predio,
     NULLIF(btrim(i.documento_identidad),'') AS documento_identidad
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 ),
 duplicados AS (
   SELECT
@@ -2606,8 +2606,8 @@ duplicados AS (
 )
 SELECT
   '756'::text AS regla,
-  'ILC_Interesado'::text AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   NULL::bigint AS objectid,
   NULL::uuid   AS globalid,
   NULL::text   AS id_operacion,
@@ -2634,7 +2634,7 @@ WITH base AS (
     btrim(i.id_operacion_predio) AS id_operacion_predio,
     NULLIF(btrim(i.grupo_etnico),'') AS grupo_etnico,
     NULLIF(btrim(i.nombre_pueblo),'') AS nombre_pueblo
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
 ),
 viol AS (
   SELECT
@@ -2648,8 +2648,8 @@ viol AS (
 )
 SELECT
   '761'::text AS regla,
-  'ILC_Interesado'::text AS objeto,
-  'preprod.ilc_interesado'::text AS tabla,
+  't_ilc_Interesado'::text AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio,
@@ -2677,8 +2677,8 @@ WITH base AS (
     btrim(d.id_operacion_predio) AS id_operacion_predio,
     lower(btrim(d.tipo)) AS derecho_tipo,
     lower(btrim(p.tipo)) AS predio_tipo
-  FROM preprod.ilc_derecho d
-  JOIN preprod.ilc_predio p
+  FROM preprod.t_ilc_derecho d
+  JOIN preprod.t_ilc_predio p
     ON p.id_operacion = d.id_operacion_predio
 ),
 viol AS (
@@ -2693,8 +2693,8 @@ viol AS (
 )
 SELECT
   '732'::text AS regla,
-  'ILC_Derecho'::text AS objeto,
-  'preprod.ilc_derecho'::text AS tabla,
+  't_ilc_Derecho'::text AS objeto,
+  'preprod.t_ilc_derecho'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio,
@@ -2721,8 +2721,8 @@ WITH base AS (
     btrim(d.id_operacion_predio) AS id_operacion_predio,
     lower(btrim(d.tipo)) AS derecho_tipo,
     lower(btrim(p.tipo)) AS predio_tipo
-  FROM preprod.ilc_derecho d
-  JOIN preprod.ilc_predio p
+  FROM preprod.t_ilc_derecho d
+  JOIN preprod.t_ilc_predio p
     ON p.id_operacion = d.id_operacion_predio
 ),
 viol AS (
@@ -2740,8 +2740,8 @@ viol AS (
 )
 SELECT
   '733'::text AS regla,
-  'ILC_Derecho'::text AS objeto,
-  'preprod.ilc_derecho'::text AS tabla,
+  't_ilc_Derecho'::text AS objeto,
+  'preprod.t_ilc_derecho'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio,
@@ -2771,8 +2771,8 @@ WITH dpr AS (
     btrim(p.tipo)                                                 AS predio_tipo_raw,
     -- normaliza tipo de predio: mayúsc/minúsc y reemplaza . y espacios por _
     lower(regexp_replace(btrim(p.tipo), '[\.\s]+', '_', 'g'))     AS predio_tipo_norm
-  FROM preprod.ilc_derecho d
-  JOIN preprod.ilc_predio p
+  FROM preprod.t_ilc_derecho d
+  JOIN preprod.t_ilc_predio p
     ON p.id_operacion = d.id_operacion_predio
   WHERE lower(btrim(d.tipo)) = 'dominio'
 ),
@@ -2788,7 +2788,7 @@ int_rs AS (
       lower(i.razon_social) LIKE '%municipio%' OR
       lower(i.razon_social) LIKE '%agencia nacional de tierras%'
     ) AS tiene_rs_valida
-  FROM preprod.ilc_interesado i
+  FROM preprod.t_ilc_interesado i
   GROUP BY btrim(i.id_operacion_predio)
 ),
 base AS (
@@ -2814,8 +2814,8 @@ viol AS (
 )
 SELECT
   '734'::text                      AS regla,
-  'ILC_Interesado'::text           AS objeto,
-  'preprod.ilc_interesado'::text   AS tabla,
+  't_ilc_Interesado'::text           AS objeto,
+  'preprod.t_ilc_interesado'::text   AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion_predio            AS id_operacion,
@@ -2845,8 +2845,8 @@ WITH dpr AS (
         btrim(d.id_operacion_predio) AS id_operacion_predio,
         lower(btrim(d.tipo))         AS derecho_tipo,
         btrim(p.tipo)                AS predio_tipo
-    FROM preprod.ilc_derecho d
-    JOIN preprod.ilc_predio p
+    FROM preprod.t_ilc_derecho d
+    JOIN preprod.t_ilc_predio p
       ON p.id_operacion = d.id_operacion_predio
     WHERE lower(btrim(d.tipo)) = 'dominio'
       AND p.tipo IN ('Publico_Fiscal_Patrimonial','Publico_Uso_Publico')
@@ -2859,7 +2859,7 @@ ints AS (
             ' | ' ORDER BY i.objectid
         ) AS interesados_raw,
         bool_or(lower(btrim(i.tipo)) <> 'persona_juridica') AS hay_invalido
-    FROM preprod.ilc_interesado i
+    FROM preprod.t_ilc_interesado i
     GROUP BY i.id_operacion_predio
 ),
 base AS (
@@ -2872,8 +2872,8 @@ base AS (
 )
 SELECT
     '737'::text                    AS regla,
-    'ILC_Interesado'::text         AS objeto,
-    'preprod.ilc_interesado'::text AS tabla,
+    't_ilc_Interesado'::text         AS objeto,
+    'preprod.t_ilc_interesado'::text AS tabla,
     b.objectid,
     b.globalid,
     b.id_operacion_predio          AS id_operacion,
@@ -2906,7 +2906,7 @@ WITH predios AS (
     lower(btrim(p.condicion_predio))              AS condicion,
     p.numero_predial_nacional                     AS npn,
     regexp_replace(p.numero_predial_nacional, '\D', '', 'g') AS npn_digits
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 predios_objetivo AS (
   SELECT
@@ -2926,13 +2926,13 @@ uc AS (   -- UC con sus áreas
     u.globalid                        AS uc_globalid,
     u.id_caracteristicasunidadconstru AS cuc_id_fk,
     u.area_construccion
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (  -- características (uso)
   SELECT
     c.id_caracteristicas_unidad_cons  AS cuc_id,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc_join AS (  -- UC + uso por predio
   SELECT
@@ -2988,8 +2988,8 @@ base AS (
 )
 SELECT
   '762'::text                     AS regla,
-  'ILC_Predio'::text             AS objeto,
-  'preprod.ilc_predio'::text     AS tabla,
+  't_ilc_Predio'::text             AS objeto,
+  'preprod.t_ilc_predio'::text     AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -3022,17 +3022,17 @@ WITH uc AS (
     u.globalid,
     btrim(u.id_operacion_predio) AS id_operacion,
     u.planta_ubicacion
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 )
 SELECT
   '774'::text             AS regla,
-  'CR_UnidadConstruccion'::text AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   uc.objectid,
   uc.globalid,
   uc.id_operacion,
   COALESCE(uc.planta_ubicacion::text,'(NULL)') AS planta,
-  'INCUMPLE: CR_UnidadConstruccion.Planta_Ubicacion debe ser > 0'::text AS descripcion,
+  'INCUMPLE: t_cr_UnidadConstruccion.Planta_Ubicacion debe ser > 0'::text AS descripcion,
   (
     'planta_ubicacion='||COALESCE(uc.planta_ubicacion::text,'NULL')
   )::text AS valor,
@@ -3054,13 +3054,13 @@ WITH cuc AS (
     c.id_caracteristicas_unidad_cons     AS cuc_id,
     lower(btrim(c.tipo_unidad_construccion)) AS tipo_uc,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc AS (
   SELECT
     u.id_caracteristicasunidadconstru    AS cuc_id_fk,
     btrim(u.id_operacion_predio)         AS id_operacion
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc_uc AS (
   SELECT
@@ -3074,8 +3074,8 @@ cuc_uc AS (
 )
 SELECT
   '771'::text                                              AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text            AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text    AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text            AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text    AS tabla,
   cuc_uc.objectid,
   cuc_uc.globalid,
   cuc_uc.id_operacion,
@@ -3101,13 +3101,13 @@ WITH cuc AS (
     c.id_caracteristicas_unidad_cons     AS cuc_id,
     lower(btrim(c.tipo_unidad_construccion)) AS tipo_uc,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc AS (
   SELECT
     u.id_caracteristicasunidadconstru    AS cuc_id_fk,
     btrim(u.id_operacion_predio)         AS id_operacion
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc_uc AS (
   SELECT
@@ -3121,8 +3121,8 @@ cuc_uc AS (
 )
 SELECT
   '772'::text                                              AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text            AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text    AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text            AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text    AS tabla,
   cuc_uc.objectid,
   cuc_uc.globalid,
   cuc_uc.id_operacion,
@@ -3149,13 +3149,13 @@ WITH cuc AS (
     c.id_caracteristicas_unidad_cons                 AS cuc_id,
     lower(btrim(c.tipo_unidad_construccion))         AS tipo_uc,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc AS (
   SELECT
     u.id_caracteristicasunidadconstru                AS cuc_id_fk,
     btrim(u.id_operacion_predio)                     AS id_operacion
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc_uc AS (
   SELECT
@@ -3169,8 +3169,8 @@ cuc_uc AS (
 )
 SELECT
   '773'::text                                           AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text         AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text         AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   cuc_uc.objectid,
   cuc_uc.globalid,
   cuc_uc.id_operacion,
@@ -3196,7 +3196,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.destinacion_economica))         AS dest_econ,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 predio_hab AS (               -- solo predios Habitacionales
   SELECT *
@@ -3228,13 +3228,13 @@ uc AS (                       -- UC con FK a CUC y área en 9377 (m²) sin UPDAT
       ),
       0
     ) AS area_m2
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (                      -- características de la UC (para el Uso)
   SELECT
     c.id_caracteristicas_unidad_cons  AS cuc_id,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc_en_predio AS (             -- UC de cada predio con su Uso
   SELECT
@@ -3282,15 +3282,15 @@ base AS (                    -- razones y métricas finales
 )
 SELECT
   '775'::text                 AS regla,
-  'ILC_Predio'::text          AS objeto,
-  'preprod.ilc_predio'::text  AS tabla,
+  't_ilc_Predio'::text          AS objeto,
+  'preprod.t_ilc_predio'::text  AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
   b.npn,
   CASE
     WHEN b.n_uc_total = 0 THEN
-      'INCUMPLE: Predio Habitacional sin CR_UnidadConstruccion asociadas.'
+      'INCUMPLE: Predio Habitacional sin t_cr_UnidadConstruccion asociadas.'
     WHEN b.n_uc_residenciales = 0 THEN
       'INCUMPLE: Sin UC con Uso Residencial (Uso ILIKE ''Residencial%'').'
     ELSE
@@ -3322,7 +3322,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.destinacion_economica))         AS dest_econ,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 predio_com AS (               -- solo predios Comerciales
   SELECT *
@@ -3353,13 +3353,13 @@ uc AS (                       -- UC con área en 9377 (m²), robusto a SRID=0, s
       ),
       0
     ) AS area_m2
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (                      -- características
   SELECT
     c.id_caracteristicas_unidad_cons AS cuc_id,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc_en_predio AS (             -- UC de cada predio con su Uso
   SELECT
@@ -3429,15 +3429,15 @@ base AS (                     -- métrica final + join con uso predominante
 )
 SELECT
   '776'::text                AS regla,
-  'ILC_Predio'::text         AS objeto,
-  'preprod.ilc_predio'::text AS tabla,
+  't_ilc_Predio'::text         AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
   b.npn,
   CASE
     WHEN b.n_uc_total = 0 THEN
-      'INCUMPLE: Predio Comercial sin CR_UnidadConstruccion asociadas.'
+      'INCUMPLE: Predio Comercial sin t_cr_UnidadConstruccion asociadas.'
     WHEN b.n_uc_comerciales = 0 THEN
       'INCUMPLE: Sin UC con Uso Comercial (Uso ILIKE ''Comercial%'').'
     WHEN b.area_total_uc > 0 AND b.area_comercial < b.area_top THEN
@@ -3472,7 +3472,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.destinacion_economica))         AS dest_econ,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 predio_ind AS (              -- solo predios Industriales
   SELECT *
@@ -3504,13 +3504,13 @@ uc AS (
       ),
       0
     ) AS area_m2
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (
   SELECT
     c.id_caracteristicas_unidad_cons AS cuc_id,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc_en_predio AS (            -- UC + Uso
   SELECT
@@ -3582,15 +3582,15 @@ base AS (                     -- métricas finales + uso predominante
 )
 SELECT
   '777'::text                AS regla,
-  'ILC_Predio'::text         AS objeto,
-  'preprod.ilc_predio'::text AS tabla,
+  't_ilc_Predio'::text         AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
   b.npn,
   CASE
     WHEN b.n_uc_total = 0 THEN
-      'INCUMPLE: Predio Industrial sin CR_UnidadConstruccion asociadas.'
+      'INCUMPLE: Predio Industrial sin t_cr_UnidadConstruccion asociadas.'
     WHEN b.n_uc_industriales = 0 THEN
       'INCUMPLE: Sin UC con Uso Industrial (Uso ILIKE ''Industrial%'').'
     WHEN b.area_total_uc > 0 AND b.area_industrial < b.area_top THEN
@@ -3624,7 +3624,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.destinacion_economica))         AS dest_econ,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 predio_obj AS (  -- Institucional/Cultural/Educativo/Religioso (soporta el typo "Eductaivo")
   SELECT *
@@ -3656,13 +3656,13 @@ uc AS (
       ),
       0
     ) AS area_m2
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (
   SELECT
     c.id_caracteristicas_unidad_cons AS cuc_id,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc_en_predio AS (  -- UC + Uso (y categoría por prefijo)
   SELECT
@@ -3733,15 +3733,15 @@ base AS (  -- métricas finales + uso predominante
 )
 SELECT
   '778'::text                AS regla,
-  'ILC_Predio'::text         AS objeto,
-  'preprod.ilc_predio'::text AS tabla,
+  't_ilc_Predio'::text         AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
   b.npn,
   CASE
     WHEN b.n_uc_total = 0 THEN
-      'INCUMPLE: Predio Institucional/Cultural/Educativo/Religioso sin CR_UnidadConstruccion asociadas.'
+      'INCUMPLE: Predio Institucional/Cultural/Educativo/Religioso sin t_cr_UnidadConstruccion asociadas.'
     WHEN b.n_uc_institucionales = 0 THEN
       'INCUMPLE: Sin UC con Uso Institucional (Uso ILIKE ''Institucional%'').'
     WHEN b.area_total_uc > 0 AND b.area_institucional < b.area_top THEN
@@ -3765,7 +3765,7 @@ WHERE b.n_uc_total = 0
 ORDER BY b.id_operacion, b.objectid;
 
 --779
--- Regla 779: CR/ILC_CaracteristicasUnidadConstruccion.Total_Plantas > 0
+-- Regla 779: CR/t_ilc_CaracteristicasUnidadConstruccion.Total_Plantas > 0
 DROP TABLE IF EXISTS reglas.779;
 
 CREATE TABLE reglas.779 AS
@@ -3775,19 +3775,19 @@ WITH cuc AS (
     c.globalid,
     c.id_caracteristicas_unidad_cons       AS cuc_id,
     c.total_plantas
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 uc AS (
   SELECT
     u.id_caracteristicasunidadconstru      AS cuc_id_fk,
     btrim(u.id_operacion_predio)           AS id_operacion
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 predio AS (
   SELECT
     btrim(p.id_operacion)                  AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 cuc_uc AS (
   SELECT
@@ -3810,8 +3810,8 @@ base AS (
 )
 SELECT
   '779'::text                                             AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text           AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text   AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text           AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text   AS tabla,
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -3846,7 +3846,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.condicion_predio))              AS condicion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('ph_unidad_predial','condominio_unidad_predial')
 ),
 uc AS (
@@ -3856,7 +3856,7 @@ uc AS (
     btrim(u.id_operacion_predio) AS id_operacion,
     u.area_construccion,
     u.area_privada_construida
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 base AS (
   SELECT
@@ -3874,8 +3874,8 @@ base AS (
 )
 SELECT
   '780'::text                  AS regla,
-  'CR_UnidadConstruccion'::text AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   b.uc_objectid                AS objectid,
   b.uc_globalid                AS globalid,
   b.id_operacion,
@@ -3909,7 +3909,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.condicion_predio))              AS condicion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN (
     'ph_unidad_predial','ph.unidad_predial',
     'condominio_unidad_predial','condominio.unidad_predial'
@@ -3921,14 +3921,14 @@ uc AS (
     u.globalid,
     btrim(u.id_operacion_predio)      AS id_operacion,
     u.id_caracteristicasunidadconstru AS cuc_id_fk
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (
   SELECT
     c.id_caracteristicas_unidad_cons     AS cuc_id,
     btrim(c.tipo_unidad_construccion)    AS tipo_uc,
     c.uso                                AS uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 predio_uc AS (  -- Predio -> UC -> CUC
   SELECT
@@ -3960,8 +3960,8 @@ eval AS (
 )
 SELECT
   '763'::text                          AS regla,
-  'CR_UnidadConstruccion'::text        AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text        AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   e.uc_objectid                        AS objectid,
   e.uc_globalid                        AS globalid,
   e.id_operacion,
@@ -3998,7 +3998,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.condicion_predio))              AS condicion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) NOT IN (
     'ph_unidad_predial','ph.unidad_predial',
     'condominio_unidad_predial','condominio.unidad_predial'
@@ -4011,7 +4011,7 @@ uc AS (
     btrim(u.id_operacion_predio) AS id_operacion,
     u.area_construccion,
     u.area_privada_construida
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 predio_uc AS (
   SELECT
@@ -4029,8 +4029,8 @@ predio_uc AS (
 )
 SELECT
   '781'::text                          AS regla,
-  'CR_UnidadConstruccion'::text        AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text        AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   p.uc_objectid                        AS objectid,
   p.uc_globalid                        AS globalid,
   p.id_operacion,
@@ -4064,7 +4064,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS id_operacion,
     lower(btrim(p.condicion_predio))              AS condicion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc_raw AS (  -- UC con áreas declaradas
   SELECT
@@ -4074,7 +4074,7 @@ uc_raw AS (  -- UC con áreas declaradas
     u.area_construccion,
     u.area_privada_construida,
     u.shape
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 -- Área geométrica (m²) robusta (SRID=0 → 9377; MakeValid; solo polígonos; transform a 9377 si aplica)
 uc_area AS (
@@ -4141,8 +4141,8 @@ calc AS (
 )
 SELECT
   '782'::text                         AS regla,
-  'CR_UnidadConstruccion'::text       AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text       AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   c.uc_objectid                       AS objectid,
   c.uc_globalid                       AS globalid,
   c.id_operacion,
@@ -4192,13 +4192,13 @@ predio AS (
   SELECT btrim(p.id_operacion) AS id_operacion,
          btrim(p.numero_predial_nacional)::varchar(30) AS npn,
          lower(btrim(p.condicion_predio)) AS condicion
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc_norm AS (
   SELECT pr.id_operacion, pr.npn, pr.condicion,
          u.identificador, u.area_construccion, u.area_privada_construida,
          ST_Force2D(ST_CollectionExtract(ST_MakeValid(u.shape), 3)) AS geom2d
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
   JOIN predio pr ON pr.id_operacion = btrim(u.id_operacion_predio)
 ),
 uc_area AS (
@@ -4271,8 +4271,8 @@ res AS (
 )
 SELECT
   '783'::text                           AS regla,
-  'CR_UnidadConstruccion'::text         AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text         AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   NULL::int4                            AS objectid,
   NULL::varchar(38)                     AS globalid,
   r.id_operacion_uno                    AS id_operacion,
@@ -4298,20 +4298,20 @@ WITH predio AS (
     btrim(p.id_operacion) AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn,
     lower(btrim(p.condicion_predio)) AS condicion
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (
   SELECT 
     u.id_operacion_predio AS id_operacion,
     u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (
   SELECT 
     c.id_caracteristicas_unidad_cons AS cuc_id,
     lower(btrim(c.tipo_unidad_construccion)) AS tipo_uc,
     lower(btrim(c.uso)) AS uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 pu AS (
   SELECT 
@@ -4325,8 +4325,8 @@ pu AS (
 )
 SELECT
   '764'::text                        AS regla,
-  'CR_UnidadConstruccion'::text      AS objeto,
-  'preprod.cr_unidadconstruccion'    AS tabla,
+  't_cr_UnidadConstruccion'::text      AS objeto,
+  'preprod.t_cr_unidadconstruccion'    AS tabla,
   NULL::int4                         AS objectid,
   NULL::varchar(38)                  AS globalid,
   NULL::text                         AS id_operacion,
@@ -4354,7 +4354,7 @@ predio AS (
   SELECT 
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 terreno AS (
   SELECT 
@@ -4362,7 +4362,7 @@ terreno AS (
     t.globalid,
     btrim(t.id_operacion_predio) AS id_operacion_predio,
     ST_CollectionExtract(ST_MakeValid(t.shape), 3) AS geom_poly
-  FROM preprod.cr_terreno t
+  FROM preprod.t_cr_terreno t
 ),
 terreno_predio AS (
   SELECT 
@@ -4420,8 +4420,8 @@ partes_area AS (
 --  b) Partes con área < 2.00 m² (incluye 0.00 m²)
 SELECT
   '766'::text               AS regla,
-  'CR_Terreno'::text        AS objeto,
-  'preprod.cr_terreno'::text AS tabla,
+  't_cr_Terreno'::text        AS objeto,
+  'preprod.t_cr_terreno'::text AS tabla,
   v.objectid                AS objectid,
   v.globalid                AS globalid,
   v.id_operacion_predio     AS id_operacion,
@@ -4437,8 +4437,8 @@ UNION ALL
 
 SELECT
   '766'::text,
-  'CR_Terreno'::text,
-  'preprod.cr_terreno'::text,
+  't_cr_Terreno'::text,
+  'preprod.t_cr_terreno'::text,
   pa.objectid,
   pa.globalid,
   pa.id_operacion_predio,
@@ -4465,7 +4465,7 @@ predio AS (
   SELECT 
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (
   SELECT 
@@ -4473,7 +4473,7 @@ uc AS (
     u.globalid,
     btrim(u.id_operacion_predio) AS id_operacion_predio,
     ST_CollectionExtract(ST_MakeValid(u.shape), 3) AS geom_poly
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 uc_predio AS (
   SELECT 
@@ -4508,8 +4508,8 @@ uc_area AS (
 )
 SELECT
   '767'::text                           AS regla,
-  'CR_UnidadConstruccion'::text         AS objeto,
-  'preprod.cr_unidadconstruccion'::text AS tabla,
+  't_cr_UnidadConstruccion'::text         AS objeto,
+  'preprod.t_cr_unidadconstruccion'::text AS tabla,
   ua.objectid,
   ua.globalid,
   ua.id_operacion_predio                AS id_operacion,
@@ -4539,7 +4539,7 @@ WITH predio AS (
     p.objectid,
     p.globalid,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (
   SELECT
@@ -4547,7 +4547,7 @@ uc AS (
     u.globalid,
     btrim(u.id_operacion_predio)  AS id_operacion,
     UPPER(btrim(u.identificador)) AS identificador
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 uc_norm AS (
   SELECT
@@ -4666,8 +4666,8 @@ final AS (
 )
 SELECT
   '768'::text                 AS regla,
-  'ILC_Predio'::text          AS objeto,
-  'preprod.ilc_predio'::text  AS tabla,
+  't_ilc_Predio'::text          AS objeto,
+  'preprod.t_ilc_predio'::text  AS tabla,
   final.objectid,
   final.globalid,
   final.id_operacion,
@@ -4706,7 +4706,7 @@ WITH predio AS (
     p.globalid,
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (  -- puente: trae la FK a características y el id_operacion del predio
   SELECT
@@ -4714,14 +4714,14 @@ uc AS (  -- puente: trae la FK a características y el id_operacion del predio
     u.globalid,
     btrim(u.id_operacion_predio)      AS id_operacion,
     u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS ( -- características: tipo y uso
   SELECT
     c.id_caracteristicas_unidad_cons AS cuc_id,
     c.tipo_unidad_construccion       AS tipo_uc,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 predio_uc_cuc AS (
   SELECT
@@ -4739,8 +4739,8 @@ predio_uc_cuc AS (
 )
 SELECT
   '769'::text                                 AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   puc.uc_objectid                             AS objectid,     -- apuntamos a la UC (donde se aplica la carac.)
   puc.uc_globalid                             AS globalid,
   puc.id_operacion,
@@ -4771,7 +4771,7 @@ WITH predio AS (
     p.globalid,
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (  -- puente: trae la FK a características y el id_operacion del predio
   SELECT
@@ -4779,14 +4779,14 @@ uc AS (  -- puente: trae la FK a características y el id_operacion del predio
     u.globalid,
     btrim(u.id_operacion_predio)      AS id_operacion,
     u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS ( -- características: tipo y uso
   SELECT
     c.id_caracteristicas_unidad_cons AS cuc_id,
     c.tipo_unidad_construccion       AS tipo_uc,
     c.uso
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 predio_uc_cuc AS (
   SELECT
@@ -4804,8 +4804,8 @@ predio_uc_cuc AS (
 )
 SELECT
   '770'::text                                 AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   puc.uc_objectid                             AS objectid,     -- apuntamos a la UC (donde se aplica la carac.)
   puc.uc_globalid                             AS globalid,
   puc.id_operacion,
@@ -4835,7 +4835,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS predio_id,
     btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial,
     lower(btrim(p.condicion_predio))              AS condicion_predio_l
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 avaluo AS (
   SELECT
@@ -4844,7 +4844,7 @@ avaluo AS (
     btrim(a.id_operacion_predio) AS predio_id,
     COALESCE(a.valor_comercial_terreno, 0)  AS valor_comercial_terreno,
     COALESCE(a.avaluo_catastral_terreno, 0) AS avaluo_catastral_terreno
-  FROM preprod.ilc_estructuraavaluo a
+  FROM preprod.t_ilc_estructuraavaluo a
 ),
 pa AS (
   SELECT
@@ -4862,8 +4862,8 @@ pa AS (
 )
 SELECT
   '793'::text                           AS regla,
-  'ILC_EstructuraAvaluo'::text         AS objeto,
-  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  't_ilc_EstructuraAvaluo'::text         AS objeto,
+  'preprod.t_ilc_estructuraavaluo'::text AS tabla,
   pa.avaluo_objectid                   AS objectid,
   pa.avaluo_globalid                   AS globalid,
   pa.predio_id,
@@ -4907,7 +4907,7 @@ WITH predio AS (
     btrim(p.id_operacion)                         AS predio_id,
     btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial,
     lower(btrim(p.destinacion_economica))         AS destinacion_l
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 avaluo AS (
   SELECT
@@ -4917,7 +4917,7 @@ avaluo AS (
     -- Totales de UNIDADES DE CONSTRUCCIÓN según tu definición de tabla
     a.valor_comercial_total_unidadesc      AS valor_com_total_uc,
     a.avaluo_catastral_total_unidades      AS aval_cat_total_uc
-  FROM preprod.ilc_estructuraavaluo a
+  FROM preprod.t_ilc_estructuraavaluo a
 ),
 pa AS (
   SELECT
@@ -4944,8 +4944,8 @@ destino_objetivo AS (
 )
 SELECT
   '794'::text                           AS regla,
-  'ILC_EstructuraAvaluo'::text         AS objeto,
-  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  't_ilc_EstructuraAvaluo'::text         AS objeto,
+  'preprod.t_ilc_estructuraavaluo'::text AS tabla,
   pa.avaluo_objectid                   AS objectid,
   pa.avaluo_globalid                   AS globalid,
   pa.predio_id,
@@ -4953,7 +4953,7 @@ SELECT
   -- Mensaje claro según el caso
   CASE
     WHEN pa.avaluo_objectid IS NULL
-      THEN 'INCUMPLE: Predio con destinación tipo Lote* sin registro en ILC_EstructuraAvaluo.'
+      THEN 'INCUMPLE: Predio con destinación tipo Lote* sin registro en t_ilc_EstructuraAvaluo.'
     WHEN COALESCE(pa.valor_com_total_uc,0) <> 0 AND COALESCE(pa.aval_cat_total_uc,0) <> 0
       THEN 'INCUMPLE: Totales de unidades (comercial y catastral) deben ser 0 para Lote*.'
     WHEN COALESCE(pa.valor_com_total_uc,0) <> 0
@@ -4993,7 +4993,7 @@ WITH predio AS (
   SELECT
     btrim(p.id_operacion)                         AS predio_id,
     btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (  -- puente UC ↔ características
   SELECT
@@ -5001,14 +5001,14 @@ uc AS (  -- puente UC ↔ características
     u.globalid,
     btrim(u.id_operacion_predio)      AS predio_id,
     u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS ( -- características UC
   SELECT
     c.id_caracteristicas_unidad_cons  AS cuc_id,
     btrim(c.tipo_unidad_construccion) AS tipo_uc,
     btrim(c.tipo_tipologia)           AS tipologia
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 base AS (
   SELECT
@@ -5069,8 +5069,8 @@ flags AS (
 )
 SELECT
   '785'::text                       AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text     AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text     AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   f.uc_objectid                                     AS objectid,
   f.uc_globalid                                     AS globalid,
   f.predio_id,
@@ -5101,7 +5101,7 @@ WITH predio AS (
   SELECT
     btrim(p.id_operacion)                         AS predio_id,
     btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (  -- puente UC ↔ características
   SELECT
@@ -5109,14 +5109,14 @@ uc AS (  -- puente UC ↔ características
     u.globalid,
     btrim(u.id_operacion_predio)      AS predio_id,
     u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS ( -- características UC
   SELECT
     c.id_caracteristicas_unidad_cons  AS cuc_id,
     btrim(c.tipo_unidad_construccion) AS tipo_uc,
     btrim(c.tipo_tipologia)           AS tipologia
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 base AS (
   SELECT
@@ -5142,8 +5142,8 @@ base AS (
 )
 SELECT
   '786'::text                         AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text     AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text     AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   b.uc_objectid                                     AS objectid,
   b.uc_globalid                                     AS globalid,
   b.predio_id,
@@ -5168,7 +5168,7 @@ WITH predio AS (
   SELECT
     btrim(p.id_operacion)                         AS predio_id,
     btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (
   SELECT
@@ -5176,14 +5176,14 @@ uc AS (
     u.globalid,
     btrim(u.id_operacion_predio)      AS predio_id,
     u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (
   SELECT
     c.id_caracteristicas_unidad_cons  AS cuc_id,
     btrim(c.tipo_unidad_construccion) AS tipo_uc,
     btrim(c.tipo_tipologia)           AS tipologia
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 base AS (
   SELECT
@@ -5217,8 +5217,8 @@ dom_institucional AS (
 )
 SELECT
   '787'::text                           AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text    AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text    AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   b.uc_objectid                                    AS objectid,
   b.uc_globalid                                    AS globalid,
   b.predio_id,
@@ -5247,20 +5247,20 @@ CREATE TABLE reglas.regla_788 AS
 WITH predio AS (
   SELECT btrim(p.id_operacion) AS predio_id,
          btrim(p.numero_predial_nacional)::varchar(30) AS numero_predial
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 uc AS (
   SELECT u.objectid,
          u.globalid,
          btrim(u.id_operacion_predio)      AS predio_id,
          u.id_caracteristicasunidadconstru AS cuc_id
-  FROM preprod.cr_unidadconstruccion u
+  FROM preprod.t_cr_unidadconstruccion u
 ),
 cuc AS (
   SELECT c.id_caracteristicas_unidad_cons  AS cuc_id,
          btrim(c.tipo_unidad_construccion) AS tipo_uc,
          btrim(c.tipo_anexo)               AS tipo_anexo
-  FROM preprod.ilc_caracteristicasunidadconstruccion c
+  FROM preprod.t_ilc_caracteristicasunidadconstruccion c
 ),
 base AS (
   SELECT
@@ -5454,8 +5454,8 @@ dom_anexo AS (
 )
 SELECT
   '788'::text                                AS regla,
-  'ILC_CaracteristicasUnidadConstruccion'::text     AS objeto,
-  'preprod.ilc_caracteristicasunidadconstruccion'::text AS tabla,
+  't_ilc_CaracteristicasUnidadConstruccion'::text     AS objeto,
+  'preprod.t_ilc_caracteristicasunidadconstruccion'::text AS tabla,
   e.uc_objectid                                     AS objectid,
   e.uc_globalid                                     AS globalid,
   e.predio_id,
@@ -5488,13 +5488,13 @@ WITH av AS (
     e.valor_comercial::numeric(38,8)                  AS vc,
     e.valor_comercial_terreno::numeric(38,8)          AS vct,
     e.valor_comercial_total_unidadesc::numeric(38,8)  AS vcu
-  FROM preprod.ilc_estructuraavaluo e
+  FROM preprod.t_ilc_estructuraavaluo e
 ),
 pr AS (
   SELECT
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 base AS (
   SELECT
@@ -5512,8 +5512,8 @@ base AS (
 )
 SELECT
   '790'::text         AS regla,
-  'ILC_EstructuraAvaluo'::text         AS objeto,
-  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  't_ilc_EstructuraAvaluo'::text         AS objeto,
+  'preprod.t_ilc_estructuraavaluo'::text AS tabla,
   b.objectid                           AS objectid,
   b.globalid                           AS globalid,
   b.id_operacion,
@@ -5556,13 +5556,13 @@ WITH av AS (
     e.avaluo_catastral::numeric(38,8)                  AS ac,
     e.avaluo_catastral_terreno::numeric(38,8)          AS act,
     e.avaluo_catastral_total_unidades::numeric(38,8)   AS actu
-  FROM preprod.ilc_estructuraavaluo e
+  FROM preprod.t_ilc_estructuraavaluo e
 ),
 pr AS (
   SELECT
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 base AS (
   SELECT
@@ -5593,8 +5593,8 @@ miss AS (
 )
 SELECT
   '791'::text       AS regla,
-  'ILC_EstructuraAvaluo'::text        AS objeto,
-  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  't_ilc_EstructuraAvaluo'::text        AS objeto,
+  'preprod.t_ilc_estructuraavaluo'::text AS tabla,
   m.objectid                          AS objectid,
   m.globalid                          AS globalid,
   m.id_operacion,
@@ -5641,13 +5641,13 @@ WITH av AS (
     e.avaluo_catastral::numeric(38,8)                  AS ac,
     e.avaluo_catastral_terreno::numeric(38,8)          AS act,
     e.avaluo_catastral_total_unidades::numeric(38,8)   AS actu
-  FROM preprod.ilc_estructuraavaluo e
+  FROM preprod.t_ilc_estructuraavaluo e
 ),
 pr AS (
   SELECT
     btrim(p.id_operacion)                         AS id_operacion,
     btrim(p.numero_predial_nacional)::varchar(30) AS npn
-  FROM preprod.ilc_predio p
+  FROM preprod.t_ilc_predio p
 ),
 base AS (
   SELECT
@@ -5713,8 +5713,8 @@ chk AS (
 )
 SELECT
   '792'::text            AS regla,
-  'ILC_EstructuraAvaluo'::text        AS objeto,
-  'preprod.ilc_estructuraavaluo'::text AS tabla,
+  't_ilc_EstructuraAvaluo'::text        AS objeto,
+  'preprod.t_ilc_estructuraavaluo'::text AS tabla,
   c.objectid                          AS objectid,
   c.globalid                          AS globalid,
   c.id_operacion,
