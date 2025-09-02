@@ -2,9 +2,8 @@
 /*//////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
 */
+--672
 
--- Regla: Consistencia de Numero_Predial_Nacional según Condicion_Predio
--- Excluye prediales con "A" en cualquier posición
 DROP TABLE IF EXISTS reglas.regla_672;
 
 CREATE TABLE reglas.regla_672 AS
@@ -66,8 +65,7 @@ INSERT INTO colsmart_prod_indicadores.consistencia_validacion_resultados
 ( id_sesion, regla, objeto, tabla, objectid, globalid, predio_id, numero_predial, descripcion, valor)
 VALUES(1,  '1.1', '', '', 0, '', 0, '', '', '', 'NO');
 
--- Regla 691: Predios con destinación Económica obligatoria deben tener UC asociada
--- Exclusión: Si en numero_predial_nacional el carácter 22 es '2', no aplica validación
+-- 691
 DROP TABLE IF EXISTS reglas.regla_691;
 
 CREATE TABLE reglas.regla_691 AS
@@ -112,7 +110,6 @@ ORDER BY r.objectid;
 --regla 681
 drop table if exists reglas.regla_681;
 create table reglas.regla_681 as
--- Regla 681 (sin tabla de “Cancelación”): pos22 ∈ {1,5,6} => incumple
 WITH p AS (
   SELECT
     objectid,
@@ -148,8 +145,6 @@ ORDER BY p.objectid;
 
 --regla 685
 
-
---regla 685
 DROP TABLE IF EXISTS reglas.regla_685;
 CREATE TABLE reglas.regla_685 AS
 WITH agg AS (
@@ -198,7 +193,6 @@ ORDER BY v.matricula_inmobiliaria, v.objectid;
 --regla 686
 drop table if exists reglas.regla_686;
 create table reglas.regla_686 as
--- Regla 686: Matricula_Inmobiliaria debe ser un número entre 1 y 9,999,999 (solo dígitos, 1–7 chars, no solo ceros)
 WITH t AS (
   SELECT
     p.objectid,
@@ -235,7 +229,6 @@ ORDER BY t.objectid;
 
 
 --regla 688
--- Regla 688: Para cada Matricula_Inmobiliaria (no vacía), Codigo_ORIP debe ser exactamente 3 dígitos.
 DROP TABLE IF EXISTS reglas.regla_688;
 CREATE TABLE reglas.regla_688 AS
 WITH t AS (
@@ -334,8 +327,6 @@ uc AS (
   FROM preprod.t_cr_unidadconstruccion c
   GROUP BY 1
 ),
--- Área de Terreno por predio (suma de áreas; calcula en SRID 9377).
--- Maneja SRID 0 (desconocido) asignándolo a 9377.
 terr AS (
   SELECT
     btrim(t.id_operacion_predio) AS id_operacion_predio,
@@ -361,28 +352,23 @@ eval AS (
   LEFT JOIN uc   u ON btrim(b.id_operacion) = u.id_operacion_predio
   LEFT JOIN terr t ON btrim(b.id_operacion) = t.id_operacion_predio
 ),
--- Clasificación de bloques y chequeos (todo en minúsculas)
 viol AS (
   SELECT
     e.*,
-    -- grupos
     (e.de IN ('acuicola','agricola','agroindustrial','agropecuario','agroforestal',
               'forestal','infraestructura_asociada_produccion_agropecuaria',
               'infraestructura_saneamiento_basico','mineria_hidrocarburos','pecuario','lote_rural')) AS es_agro_rural,
     (e.de IN ('lote_urbanizable_no_urbanizado','lote_urbanizable_no_construido')) AS es_urbanizable,
-    -- fallas por bloque
     CASE WHEN e.de <> 'lote_rural' THEN (e.d67 <> '00') ELSE FALSE END AS f_agro_d67,
     CASE WHEN e.de = 'lote_rural'  THEN (e.d67 <> '00') ELSE FALSE END AS f_lr_d67,
     CASE WHEN e.de = 'lote_rural'  THEN (e.n_uc > 0)    ELSE FALSE END AS f_lr_uc,
     CASE WHEN e.de = 'lote_rural'  THEN (e.cp IN ('ph_matriz','ph_unidad_predial','ph.unidad_predial',
                                                   'condominio_matriz','condominio_unidad_predial')) ELSE FALSE END AS f_lr_cond,
     CASE WHEN e.de = 'lote_rural'  THEN (e.area_m2 IS NULL OR e.area_m2 >= 500) ELSE FALSE END AS f_lr_area,
-    -- urbanizable
     CASE WHEN e.de IN ('lote_urbanizable_no_urbanizado','lote_urbanizable_no_construido')
          THEN (e.d67 = '00') ELSE FALSE END AS f_urb_d67
   FROM eval e
 ),
--- Armar texto de motivo y conteo de fallas
 out AS (
   SELECT
     v.*,
@@ -423,7 +409,8 @@ WHERE
   OR
   (o.es_urbanizable AND o.f_urb_d67)
 ORDER BY o.objectid;
--- Regla 673: Consecutivo de A### entre
+
+-- Regla 673: 
 
 DROP TABLE IF EXISTS reglas.regla_673;
 
@@ -739,7 +726,7 @@ CREATE TABLE preprod.t_cr_predio_copropiedad (
     updated_at            TIMESTAMP WITHOUT TIME ZONE DEFAULT now()
 );
 
--- Regla 694: Unidades en copropiedad deben existir y sumar coeficiente = 1
+-- Regla 694
 DROP TABLE IF EXISTS reglas.regla_694;
 
 CREATE TABLE reglas.regla_694 AS
@@ -809,10 +796,6 @@ ORDER BY v.id_operacion, v.npn;
 --695
 ALTER TABLE preprod.t_cr_datosphcondominio
   ADD COLUMN IF NOT EXISTS id_operacion_predio VARCHAR(50);
-
-
-
--- Regla 695: Σ(Coeficiente) en CR_Predio_Copropiedad = Area_Total_Terreno en CR_DatosPHCondominio (por predio matriz)
 DROP TABLE IF EXISTS reglas.regla_695;
 
 CREATE TABLE reglas.regla_695 AS
@@ -896,7 +879,6 @@ ORDER BY b.id_operacion, b.npn;
 
 
 --696
--- Regla 696: Si y solo si NPN[22-30] es 800000000 o 900000000 ⇒ debe existir CR_DatosPHCondominio
 DROP TABLE IF EXISTS reglas.regla_696;
 
 CREATE TABLE reglas.regla_696 AS
@@ -979,8 +961,7 @@ WHERE
 ORDER BY b.id_operacion, b.npn;
 
 --697
--- Regla 697: Unidades (NPN[22] en 8/9 y NPN[23-30]<>00000000) deben tener al menos otra unidad
--- con el mismo prefijo 1-22 y debe existir CR_DatosPHCondominio para el predio matriz.
+
 DROP TABLE IF EXISTS reglas.regla_697;
 
 CREATE TABLE reglas.regla_697 AS
@@ -1069,9 +1050,6 @@ ORDER BY b.pref22, b.npn;
 
 --698
 
--- Regla 698: Unidad (NPN[22] ∈ {8,9} y NPN[23–30] <> '00000000')
--- debe tener predio MATRIZ (mismo NPN[1–22], sufijo '00000000')
--- y ese MATRIZ debe tener registro en CR_DatosPHCondominio.
 
 DROP TABLE IF EXISTS reglas.regla_698;
 
@@ -1149,7 +1127,6 @@ WHERE b.matriz_id_operacion IS NULL
 ORDER BY b.pref22, b.npn;
 
 --699
--- Regla 699: Para NPN[22-30] = '900000000'
 
 DROP TABLE IF EXISTS reglas.regla_699;
 
@@ -1165,11 +1142,9 @@ WITH predio_target AS (
   WHERE substring(p.numero_predial_nacional FROM 22 FOR 9) = '900000000'
 ),
 terreno_area AS (
-  -- Si hay varios terrenos asociados al predio, se suma el área
   SELECT
     btrim(t.id_operacion_predio)       AS id_operacion,
     SUM(ST_Area(t.shape))::numeric     AS area_terreno
-    -- Si tu shape está en geográficas, usa: SUM(ST_Area(ST_Transform(t.shape, 9377)))
   FROM preprod.t_cr_terreno t
   GROUP BY btrim(t.id_operacion_predio)
 ),
@@ -2291,7 +2266,9 @@ WHERE
    OR cu.unidades_asociadas IS NULL
    OR ph.total_privadas_reportado <> cu.unidades_asociadas
 ORDER BY m.id_operacion, m.npn_matriz;
--- Regla 713: Solo una dirección principal por predio cuando hay múltiples direcciones
+
+
+-- Regla 713
 
 DROP TABLE IF EXISTS reglas.regla_713;
 
@@ -2701,7 +2678,7 @@ ORDER BY e.id_operacion, e.objectid;
 
 
 
----- Regla 707: Dirección Estructurada bien diligenciada
+---- Regla 707
 
 DROP TABLE IF EXISTS reglas.regla_707;
 
@@ -2778,7 +2755,7 @@ ORDER BY v.id_operacion, v.objectid;
 
 
 
--- Regla 708: Dirección No Estructurada bien diligenciada
+-- Regla 708: 
 
 DROP TABLE IF EXISTS reglas.regla_708;
 
@@ -2890,11 +2867,7 @@ SELECT
 FROM viol v
 ORDER BY v.id_operacion, v.objectid;
 
--- Regla 717: Coherencia NPN (dígitos 6–7) vs tipo de dirección
--- Si d6-7 <> '00' (no rural)  → la(s) dirección(es) deben ser Estructuradas.
--- Si d6-7  = '00' (rural)     → la(s) dirección(es) deben ser No_Estructuradas.
--- EXCEPCIÓN: rurales en zonas de comportamiento urbano o centros poblados rurales
---            (se pueden excluir vía CTE `excepciones` cuando tengas el insumo).
+-- Regla 717:'
 
 DROP TABLE IF EXISTS reglas.regla_717;
 
@@ -3071,7 +3044,7 @@ FROM marcas m
 WHERE m.estado <> 'ok'
 ORDER BY m.id_operacion, m.objectid;
 
--- Regla 725 (final): Complemento obligatorio en unidades
+-- Regla 725 
 
 DROP TABLE IF EXISTS reglas.regla_725;
 
@@ -3276,9 +3249,7 @@ WHERE f.falta_predio_informal
 ORDER BY f.idop_informal, f.idop_formal, f.objectid;
 
 
-
-
--- Regla 677: Validación de NPN para PH_Unidad_Predial
+-- Regla 677
 
 DROP TABLE IF EXISTS reglas.regla_677;
 
@@ -3346,7 +3317,7 @@ WHERE
   OR NOT v.ok_27_30
 ORDER BY v.id_operacion, v.npn;
 
--- Regla 676: Validación de NPN para PH.Matriz
+-- Regla 676
 
 
 DROP TABLE IF EXISTS reglas.regla_676;
@@ -3402,7 +3373,7 @@ WHERE
   OR NOT v.ok_23_30
 ORDER BY v.id_operacion, v.npn;
 
--- Regla 678: NPN para Parque_Cementerio.Unidad_Predial
+-- Regla 678
 
 
 DROP TABLE IF EXISTS reglas.regla_678;
@@ -3471,7 +3442,7 @@ WHERE
   OR NOT v.ok_27_30
 ORDER BY v.id_operacion, v.npn;
 
--- Regla 679: NPN para Condominio.Matriz → posiciones 22–30 = "800000000"
+-- Regla 679
 
 DROP TABLE IF EXISTS reglas.regla_679;
 
@@ -3521,7 +3492,7 @@ FROM viol v
 WHERE NOT v.ok_formato OR NOT v.ok_bloque
 ORDER BY v.id_operacion, v.npn;
 
--- Regla 680: NPN para Condominio.Unidad_Predial
+-- Regla 680
 
 
 DROP TABLE IF EXISTS reglas.regla_680;
@@ -3585,7 +3556,7 @@ CREATE TABLE preprod.t_ilc_tramitesderechoterritorial (
   updated_at              TIMESTAMP DEFAULT NOW()
 );
 
--- Regla 728: Correspondencia trámite–entidad en ILC_TramitesDerechoTerritorial
+-- Regla 728
 DROP TABLE IF EXISTS reglas.regla_728;
 
 CREATE TABLE reglas.regla_728 AS
@@ -3637,9 +3608,7 @@ ORDER BY i.id_operacion, i.objectid;
 
 
 
--- Regla 729 (ajustada): Fecha_Inicio_Tenencia según d6-7 del NPN
--- Dominio + Matrícula vacía ('' o solo espacios) + d6-7='00'  =>  1936-12-04
--- Dominio + Matrícula vacía ('' o solo espacios) + d6-7 in 01..99 => 1959-12-31
+-- Regla 729
 
 DROP TABLE IF EXISTS reglas.regla_729;
 
@@ -3802,7 +3771,7 @@ FROM base b
 WHERE b.tipo_interesado IS DISTINCT FROM 'Persona_Juridica'
 ORDER BY b.npn;
 
--- Regla 739: Vía / Bien_Uso_Publico ⇒ Tipo de predio y Derecho Dominio
+-- Regla 739
 
 DROP TABLE IF EXISTS reglas.regla_739;
 
@@ -3875,9 +3844,7 @@ ORDER BY v.id_operacion, v.npn;
 
 
 --740
--- ====================================================================================
--- VALIDACIÓN: Fecha Inicio Tenencia vs Fecha Documento Fuente
--- ====================================================================================
+
 
 DROP TABLE IF EXISTS reglas.regla_740;
 
@@ -4102,7 +4069,6 @@ WITH base AS (
 valid AS (
   SELECT
     b.*,
-    -- ¿solo dígitos?
     (b.doc_id ~ '^[0-9]+$') AS solo_numeros,
     -- > 0 (solo si es numérico)
     CASE WHEN b.doc_id ~ '^[0-9]+$'
@@ -4546,7 +4512,6 @@ WITH base AS (
   WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
 ),
 norm AS (
-  -- Normaliza cada campo: a MAYÚSCULAS, quita . , & - por espacios y colapsa espacios
   SELECT
     b.*,
     upper(btrim(b.primer_nombre))  AS pn_raw,
@@ -4561,8 +4526,7 @@ norm AS (
   FROM base b
 ),
 flag AS (
-  -- Tokens prohibidos: LTDA, SA, SCA, SAS, EN C, CIA
-  -- (S.A., S.C.A., S.A.S., & Cia, EN C. se vuelven SA/SCA/SAS/CIA/EN C tras normalizar)
+
   SELECT
     n.*,
     -- Primer Nombre
@@ -4652,10 +4616,6 @@ ORDER BY v.id_operacion_predio, v.objectid;
 
 
 --757
--- Reglas:
---  1) Tipo = 'Escritura pública'   -> Ente_Emisor debe contener "Notaría"
---  2) Tipo = 'Sentencia_judicial'  -> Ente_Emisor debe contener "Juzgado" o "Tribunal"
---  3) Tipo = 'Acto_Administrativo' -> Ente_Emisor debe contener "Alcaldía" o "ANT" o "INCODER" o "INCORA" o "Ministerio" o "Juzgado" o "Tribunal"
 
 
 DROP TABLE IF EXISTS reglas.regla_757;
@@ -4783,8 +4743,7 @@ WHERE m.tiene_nat AND m.tiene_jur
 ORDER BY m.id_operacion;
 
 
--- Regla 753: Agrupaciones solo con Persona_natural deben ser Grupo_Civil
--- Tablas: preprod.t_cr_agrupacioninteresados, preprod.t_ilc_interesado
+-- Regla 753: 
 
 DROP TABLE IF EXISTS reglas.regla_753;
 
@@ -4833,8 +4792,7 @@ WHERE g.tiene_nat = TRUE
 ORDER BY g.id_operacion;
 
 
--- Regla 754: Agrupaciones solo con Persona_juridica deben ser Grupo_Empresarial
--- Tablas: preprod.t_cr_agrupacioninteresados, preprod.t_ilc_interesado
+-- Regla 754: 
 
 DROP TABLE IF EXISTS reglas.regla_754;
 
@@ -4883,6 +4841,7 @@ WHERE g.tiene_nat = FALSE
 ORDER BY g.id_operacion;
 
 --755
+
 DROP TABLE IF EXISTS reglas.regla_755;
 
 CREATE TABLE reglas.regla_755 AS
@@ -4945,12 +4904,10 @@ WITH base AS (
   SELECT
     f.objectid,
     f.globalid,
-    -- usa el id que tengas disponible para trazar (id_operacion o id_operacion_predio)
     COALESCE(btrim(f.id_operacion), btrim(f.id_operacion_predio)) AS id_operacion,
     TRIM(f.tipo::text)                                AS tipo,
     NULLIF(TRIM(f.ente_emisor::text), '')             AS ente_emisor,
     NULLIF(TRIM(f.observacion::text), '')             AS observacion,
-    -- joins a detalles (ajusta la llave si en tu modelo cambia)
     NULLIF(TRIM(cfa.numero_fuente::text), '')         AS numero_fuente,
     cf.fecha_documento_fuente                         AS fecha_documento_fuente
   FROM preprod.t_ilc_fuenteadministrativa f
@@ -5385,7 +5342,6 @@ int_rs AS (
     btrim(i.id_operacion_predio) AS id_operacion_predio,
     -- juntamos todas las razones sociales por predio para informar
     string_agg(btrim(i.razon_social), ' | ' ORDER BY btrim(i.razon_social)) AS razones_sociales_raw,
-    -- bandera: ¿hay alguna razón social aceptada?
     bool_or(
       lower(i.razon_social) LIKE '%la nación%' OR
       lower(i.razon_social) LIKE '%la nacion%' OR
@@ -5407,7 +5363,6 @@ base AS (
 viol AS (
   SELECT
     b.*,
-    -- aplica la regla solo para los tipos públicos indicados
     (b.predio_tipo_norm IN ('publico_baldio','publico_presunto_baldio','publico_baldio_reserva_indigena')) AS aplica_regla,
     CASE
       WHEN b.predio_tipo_norm IN ('publico_baldio','publico_presunto_baldio','publico_baldio_reserva_indigena')
@@ -5621,9 +5576,7 @@ FROM base b
 WHERE b.hay_invalido = TRUE
 ORDER BY b.id_operacion_predio, b.objectid;
 
--- REGLA 762 - INCUMPLIDOS
--- Predios PH.Unidad_Predial o Informal con NPN pos22='2' y pos27-30<>'0000'
--- Deben tener ≥1 UC válida (excluye parqueaderos/garajes descubiertos y UC no construidas)
+-- REGLA 762
 
 DROP TABLE IF EXISTS reglas.regla_762_incumple;
 
@@ -5675,7 +5628,6 @@ uc_join AS (  -- UC + uso por predio
   LEFT JOIN uc  u ON u.id_operacion = po.id_operacion
   LEFT JOIN cuc c ON c.cuc_id       = u.cuc_id_fk
 ),
--- reglas de exclusión según tu lista y "no construidas"
 uc_marcada AS (
   SELECT
     id_operacion,
@@ -6495,7 +6447,7 @@ WHERE b.n_uc_total = 0
 ORDER BY b.id_operacion, b.objectid;
 
 --779
--- Regla 779: CR/t_ilc_CaracteristicasUnidadConstruccion.Total_Plantas > 0
+
 DROP TABLE IF EXISTS reglas.779;
 
 CREATE TABLE reglas.779 AS
@@ -6565,7 +6517,6 @@ ORDER BY b.id_operacion, b.objectid;
 
 --780
 
--- Regla 780: PH/Condominio_UnidadPredial deben tener Area_Construccion=0 y Area_Privada_Construida>0
 DROP TABLE IF EXISTS reglas.regla_780;
 
 CREATE TABLE reglas.regla_780 AS
@@ -6626,8 +6577,7 @@ WHERE b.area_construccion IS DISTINCT FROM 0
    OR b.area_privada_construida <= 0
 ORDER BY b.id_operacion, b.uc_objectid;
 
--- REGLA 763 - INCUMPLE
--- Predios PH/Condominio unidad predial: UC (tipo R/C/I/I) deben tener Uso con 'PH' o 'Depositos_Lockers'
+-- REGLA 763
 
 DROP TABLE IF EXISTS reglas.763;
 
@@ -6714,9 +6664,7 @@ WHERE e.uc_objectid IS NOT NULL
 ORDER BY e.id_operacion, e.uc_objectid;
 
 
--- REGLA 781 - INCUMPLE
--- Predios que NO son PH_Unidad_Predial ni Condominio_Unidad_Predial:
--- sus UC deben tener area_construccion > 0 y area_privada_construida = NULL
+-- REGLA 781
 
 DROP TABLE IF EXISTS reglas.781;
 
@@ -6778,11 +6726,8 @@ FROM predio_uc p
 WHERE p.uc_objectid IS NOT NULL
   AND (p.area_construccion IS NULL OR p.area_construccion <= 0 OR p.area_privada_construida IS NOT NULL)
 ORDER BY p.id_operacion, p.uc_objectid;
--- REGLA 782 - INCUMPLE
--- Comparación de área declarada vs área geométrica de UC.
---   - Predio NO PH/Condominio_Unidad_Predial: usa area_construccion
---   - Predio SÍ PH/Condominio_Unidad_Predial: usa area_privada_construida
--- INCUMPLE si: area_declarada es NULL/0 o abs(declarada - geom)/declarada > 1
+
+-- REGLA 782
 
 DROP TABLE IF EXISTS reglas.regla_782;
 
@@ -7258,7 +7203,7 @@ FROM uc_area ua
 WHERE ua.tiene_geom = FALSE
    OR ua.area_m2 <= (SELECT area_min_m2 FROM params);
 
--- REGLA 768 - INCUMPLE (admite duplicados; muestra inválidos en "valor")
+-- REGLA 768 
 
 DROP TABLE IF EXISTS reglas.regla_768;
 
@@ -7424,8 +7369,7 @@ WHERE
   OR COALESCE(final.letras_faltantes,'') <> ''
 ORDER BY final.id_operacion, final.objectid;
 
--- REGLA 769 - INCUMPLE
--- Si Tipo_Unidad_Construccion = 'Anexo' entonces Uso debe contener '%Anexo%'
+-- REGLA 769
 
 DROP TABLE IF EXISTS reglas.regla_769;
 
@@ -7489,8 +7433,7 @@ WHERE lower(puc.tipo_uc) = 'anexo'
 ORDER BY puc.id_operacion, puc.uc_objectid;
 
 
--- REGLA 770 - INCUMPLE
--- Si Tipo_Unidad_Construccion = 'Comercial' entonces Uso debe contener '%Comercial%'
+-- REGLA 770 
 
 DROP TABLE IF EXISTS reglas.regla_770;
 
@@ -7623,9 +7566,7 @@ WHERE pa.condicion_predio_l = 'informal'
   AND (pa.valor_comercial_terreno <> 0 OR pa.avaluo_catastral_terreno <> 0)
 ORDER BY pa.predio_id, pa.avaluo_objectid;
 
--- REGLA 794 - INCUMPLE
--- Si Destinacion_Economica ∈ {Lote_Urbanizable_No_Urbanizado, Lote_Urbanizable_No_Construido, Lote_No_Urbanizable, Lote_Rural}
--- ⇒ valor_comercial_total_unidadesc = 0 y avaluo_catastral_total_unidades = 0
+-- REGLA 794
 
 DROP TABLE IF EXISTS reglas.regla_794;
 
@@ -7714,7 +7655,7 @@ WHERE
    OR COALESCE(pa.aval_cat_total_uc,0) <> 0
 ORDER BY pa.predio_id, pa.avaluo_objectid;
 
--- 785 REGLA ÚNICA - INCUMPLE (Comercial ⇔ Tipología en dominio Comercial/Conservación/ED_Servicios)
+-- 785 
 
 DROP TABLE IF EXISTS reglas.regla_785;
 
@@ -7822,7 +7763,6 @@ ORDER BY f.predio_id, f.uc_objectid;
 
 
 --786
--- REGLA - INCUMPLE (Industrial → tipología debe contener "Industrial")
 
 DROP TABLE IF EXISTS reglas.regla_786;
 
@@ -7889,7 +7829,6 @@ WHERE b.tipo_uc_l = 'industrial'
 ORDER BY b.predio_id, b.uc_objectid;
 
 --787
--- REGLA - INCUMPLE (Institucional → Tipología del dominio Institucional)
 
 DROP TABLE IF EXISTS reglas.regla_787;
 
@@ -7969,8 +7908,7 @@ ORDER BY b.predio_id, b.uc_objectid;
 
 --788
 
--- REGLA - INCUMPLE (Anexo → tipo_anexo ∈ CUC_AnexoTipo)
--- Solo UCs con tipo_unidad_construccion = 'Anexo'.
+
 DROP TABLE IF EXISTS reglas.regla_788;
 
 CREATE TABLE reglas.regla_788 AS
@@ -8238,7 +8176,6 @@ WHERE ea.id_operacion IS NULL
 ORDER BY d.id_operacion;
 
 --790
--- REGLA - INCUMPLE (Valor_Comercial = Terreno + UnidadesC y > 0)
 DROP TABLE IF EXISTS reglas.regla_790;
 
 CREATE TABLE reglas.regla_790 AS
@@ -8306,7 +8243,6 @@ WHERE
 ORDER BY b.id_operacion, b.objectid;
 
 --791
--- REGLA - INCUMPLE (Avaluo_Catastral = Terreno + Total_Unidades y > 0)
 DROP TABLE IF EXISTS reglas.regla_791;
 
 CREATE TABLE reglas.regla_791 AS
@@ -8550,7 +8486,6 @@ WHERE COALESCE(f.tipo_es_res,false) <> COALESCE(f.tipologia_en_dom,false)  -- �
 ORDER BY f.id_operacion, f.uc_objectid;
 
 --792
--- REGLA - INCUMPLE (Catastral dentro de [60%,100%] del Comercial y todos > 0)
 DROP TABLE IF EXISTS reglas.regla_792;
 
 CREATE TABLE reglas.regla_792 AS
@@ -8677,8 +8612,7 @@ WHERE
 ORDER BY c.id_operacion, c.objectid;
 
 --795
--- Regla 795: Validar cálculo de Avaluo_Comercial_Terreno según zona homogénea
--- SOLO INCUMPLE
+
 
 DROP TABLE IF EXISTS reglas.regla_795;
 
@@ -8824,3 +8758,565 @@ WHERE
    OR ABS(c.dif_abs) > p.tol_abs
    OR (c.dif_pct IS NOT NULL AND ABS(c.dif_pct) > p.tol_pct)
 ORDER BY c.id_operacion;
+
+
+--869
+DROP TABLE IF EXISTS reglas.regla_869;
+
+CREATE TABLE reglas.regla_869 AS
+WITH dalc AS (      -- filas con esas novedades
+  SELECT DISTINCT
+      btrim(d.id_operacion_predio) AS id_operacion,
+      d.objectid,
+      d.globalid,
+      UPPER(btrim(d.novedad_numero_tipo)) AS novedad_tipo
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) IN (
+      'DESENGLOBE_VENTA_PARCIAL',
+      'DESENGLOBE_DIVISION_MATERIAL'
+  )
+),
+pred AS (          -- predios con su matrícula
+  SELECT
+      btrim(p.id_operacion)        AS id_operacion,
+      p.matricula_inmobiliaria
+  FROM preprod.t_ilc_predio p
+)
+SELECT
+    '869'::text                             AS regla,
+    'ILC_Predio'::text                      AS tabla,
+    'Matricula_Inmobiliaria'::text          AS objeto,
+    d.objectid,
+    d.globalid,
+    d.id_operacion,
+    NULL::text                              AS npn,
+    'novedad='||d.novedad_tipo||', matricula='||
+      COALESCE(p.matricula_inmobiliaria,'<NULL>')         AS valor,
+    'INCUMPLE: Con novedad de desenglobe, la Matricula_Inmobiliaria debe estar diligenciada y <> ''0''.' 
+      AS descripcion,
+    FALSE AS cumple,
+    NOW() AS created_at,
+    NOW() AS updated_at
+FROM dalc d
+LEFT JOIN pred p ON p.id_operacion = d.id_operacion
+WHERE
+      p.matricula_inmobiliaria IS NULL
+   OR btrim(p.matricula_inmobiliaria) = ''
+   OR btrim(p.matricula_inmobiliaria) = '0'
+ORDER BY d.id_operacion;
+
+
+--879
+DROP TABLE IF EXISTS reglas.regla_879;
+
+CREATE TABLE reglas.regla_879 AS
+WITH enp AS (
+  SELECT
+    btrim(d.id_operacion_predio)                                   AS id_operacion,
+    d.objectid,
+    d.globalid,
+    UPPER(btrim(d.novedad_numero_tipo))                            AS tipo_novedad,
+    btrim(d.novedad_numero_predial)                                AS numero_predial,
+    LENGTH(btrim(d.novedad_numero_predial))                        AS len_np,
+    SUBSTRING(btrim(d.novedad_numero_predial) FROM 18 FOR 1)       AS dig18,
+    SUBSTRING(btrim(d.novedad_numero_predial) FROM 22 FOR 1)       AS dig22
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) IN (
+    'CANCELACION',
+    'CANCELACIÓN',
+    'CANCELACION_POR_DESENGLOBE',
+    'CANCELACIÓN_POR_DESENGLOBE',
+    'Desenglobe_Division_Material'
+    'CANCELACION_POR_ENGLOBE',
+    'CANCELACIÓN_POR_ENGLOBE'
+  )
+),
+comp AS (
+  SELECT
+    e.*,
+    /* Longitud mínima para poder evaluar posiciones 18 y 22 */
+    (e.len_np IS NULL OR e.len_np < 22)                                             AS fail_len,
+    /* Dígito 18: debe existir, ser numérico y distinto de '9' */
+    (e.len_np >= 18 AND e.dig18 ~ '^[0-9]$' AND e.dig18 <> '9') = FALSE             AS fail_dig18,
+    /* Dígito 22: debe existir y ser distinto de '2' (cualquier char menos '2') */
+    (e.len_np >= 22 AND e.dig22 IS NOT NULL AND e.dig22 <> '2') = FALSE             AS fail_dig22
+  FROM enp e
+)
+SELECT
+  '879'::text                                         AS regla,
+  'ILC_EstructuraNovedadNumeroPredial'::text          AS tabla,
+  'Numero_Predial_digitos_18y22'::text                AS objeto,
+  c.objectid,
+  c.globalid,
+  c.id_operacion,
+  NULL::text                                          AS npn,
+  'tipo='||c.tipo_novedad
+    ||', len='||COALESCE(c.len_np,0)
+    ||', dig18='||COALESCE(c.dig18,'<NULL>')
+    ||', dig22='||COALESCE(c.dig22,'<NULL>')          AS valor,
+  'INCUMPLE: '
+    || CASE WHEN c.fail_len   THEN '[longitud < 22] '                    ELSE '' END
+    || CASE WHEN c.fail_dig18 THEN '[dígito18 no numérico o = 9] '       ELSE '' END
+    || CASE WHEN c.fail_dig22 THEN '[dígito22 = 2 o ausente] '           ELSE '' END
+                                                     AS descripcion,
+  FALSE                                               AS cumple,
+  NOW()                                               AS created_at,
+  NOW()                                               AS updated_at
+FROM comp c
+WHERE c.fail_len OR c.fail_dig18 OR c.fail_dig22
+ORDER BY c.id_operacion, c.objectid;
+
+
+
+--880
+DROP TABLE IF EXISTS reglas.regla_880;
+
+CREATE TABLE reglas.regla_880 AS
+WITH enp AS (
+  SELECT
+    btrim(d.id_operacion_predio)        AS id_operacion,
+    d.objectid,
+    d.globalid,
+    UPPER(btrim(d.novedad_numero_tipo)) AS tipo_novedad,
+    btrim(d.novedad_numero_predial)     AS np_enp
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) IN (
+    'CANCELACION',
+    'CANCELACIÓN_POR_DESENGLOBE',
+    'CANCELACION_POR_DESENGLOBE',
+    'CANCELACIÓN_POR_ENGLOBE',
+    'CANCELACION_POR_ENGLOBE'
+  )
+),
+pred AS (
+  SELECT
+    btrim(p.id_operacion)            AS id_operacion,
+    btrim(p.numero_predial_nacional) AS np_predio
+  FROM preprod.t_ilc_predio p
+),
+comp AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    e.id_operacion,
+    e.tipo_novedad,
+    e.np_enp,
+    p.np_predio,
+    CASE
+      WHEN p.np_predio IS NULL OR e.np_enp IS NULL THEN TRUE
+      WHEN p.np_predio <> e.np_enp THEN TRUE
+      ELSE FALSE
+    END AS fail_match
+  FROM enp e
+  LEFT JOIN pred p ON p.id_operacion = e.id_operacion
+)
+SELECT
+  '880'::text                                 AS regla,
+  'ILC_Predio'::text                          AS tabla,
+  'Numero_Predial_vs_Novedad'::text           AS objeto,
+  c.objectid,
+  c.globalid,
+  c.id_operacion,
+  NULL::text                                  AS npn,
+  'tipo='||c.tipo_novedad
+    ||', np_predio='||COALESCE(c.np_predio,'<NULL>')
+    ||', np_enp='||COALESCE(c.np_enp,'<NULL>') AS valor,
+  CASE
+    WHEN c.fail_match THEN 'INCUMPLE: Numero_Predial_Nacional de Predio ≠ Numero_Predial de Novedad'
+    ELSE 'CUMPLE: NPN de Predio coincide con NPN de Novedad'
+  END                                         AS descripcion,
+  NOT c.fail_match                            AS cumple,
+  NOW()                                       AS created_at,
+  NOW()                                       AS updated_at
+FROM comp c
+ORDER BY c.id_operacion, c.objectid;
+
+
+
+--882
+DROP TABLE IF EXISTS reglas.regla_882;
+
+CREATE TABLE reglas.regla_882 AS
+WITH canc AS (      -- Predios con novedad de cancelación
+  SELECT DISTINCT
+    btrim(d.id_operacion_predio)          AS id_operacion,
+    UPPER(btrim(d.novedad_numero_tipo))   AS tipo_novedad,
+    btrim(d.novedad_numero_predial)       AS np_enp
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) IN (
+    'CANCELACION',
+    'CANCELACIÓN_POR_DESENGLOBE',
+    'CANCELACION_POR_DESENGLOBE',
+    'CANCELACIÓN_POR_ENGLOBE',
+    'CANCELACION_POR_ENGLOBE'
+  )
+),
+pred AS (          -- Predio (incluye su identificador BAUnit si lo tienes)
+  SELECT
+    btrim(p.id_operacion)                 AS id_operacion,
+    btrim(p.numero_predial_nacional)      AS np_predio,
+    /* Ajusta este campo si tu PK de BAUnit es otro: */
+    p.t_ili_tid                           AS baunit_tid
+  FROM preprod.t_ilc_predio p
+),
+rel AS (           -- Relaciones BAUnit-UE en col_uebaunit
+  SELECT
+    /* Ajusta este campo si tu FK hacia BAUnit tiene otro nombre: */
+    u.id_baunit                           AS baunit_tid,
+    COUNT(*)                              AS cnt_rel
+  FROM preprod.col_uebaunit u
+  GROUP BY u.id_baunit
+),
+comp AS (          -- Comparación
+  SELECT
+    c.id_operacion,
+    c.tipo_novedad,
+    c.np_enp,
+    p.np_predio,
+    p.baunit_tid,
+    COALESCE(r.cnt_rel,0)                 AS cnt_rel,
+    -- Mismatch entre el NPN de novedad y del predio (opcional, útil para depurar)
+    CASE WHEN p.np_predio IS NULL OR c.np_enp IS NULL THEN 1
+         WHEN p.np_predio <> c.np_enp THEN 1 ELSE 0 END AS mismatch_np
+  FROM canc c
+  LEFT JOIN pred p ON p.id_operacion = c.id_operacion
+  LEFT JOIN rel  r ON r.baunit_tid   = p.baunit_tid
+)
+SELECT
+  '882'::text                                            AS regla,
+  'col_uebaunit'::text                                   AS tabla,
+  'Cancelado_sin_relaciones'::text                       AS objeto,
+  NULL::bigint                                           AS objectid,
+  NULL::uuid                                             AS globalid,
+  c.id_operacion,
+  c.np_predio                                            AS npn,
+  'tipo='||c.tipo_novedad
+   ||', rels='||c.cnt_rel
+   ||', np_enp='||COALESCE(c.np_enp,'<NULL>')
+   ||', np_predio='||COALESCE(c.np_predio,'<NULL>')
+   ||CASE WHEN c.mismatch_np=1 THEN ' [ENP≠PREDIO]' ELSE '' END   AS valor,
+  'INCUMPLE: Predio con novedad de cancelación tiene registros en col_uebaunit.' AS descripcion,
+  FALSE                                                  AS cumple,
+  NOW()                                                  AS created_at,
+  NOW()                                                  AS updated_at
+FROM comp c
+WHERE c.cnt_rel > 0    
+ORDER BY c.id_operacion;
+
+-- Regla 883 
+DROP TABLE IF EXISTS reglas.regla_883;
+
+CREATE TABLE reglas.regla_883 AS
+WITH enp AS (   -- Estructura Novedad Número Predial (solo cambios de número)
+  SELECT
+    btrim(d.id_operacion_predio)                  AS id_operacion,
+    d.objectid,
+    d.globalid,
+    UPPER(btrim(d.novedad_numero_tipo))           AS tipo_novedad,
+    btrim(d.novedad_numero_predial)               AS np_enp
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) LIKE 'CAMBIO_NUMERO_PREDIAL%'
+),
+pred AS (   -- Predio actual
+  SELECT
+    btrim(p.id_operacion)                         AS id_operacion,
+    btrim(p.numero_predial_nacional)              AS np_predio
+  FROM preprod.t_ilc_predio p
+),
+all_pred AS (  -- universo de NPN existentes
+  SELECT DISTINCT btrim(p.numero_predial_nacional) AS np_existente
+  FROM preprod.t_ilc_predio p
+),
+comp AS (
+  SELECT
+    e.objectid,
+    e.globalid,
+    e.id_operacion,
+    e.tipo_novedad,
+    e.np_enp,
+    p.np_predio,
+    /* INCUMPLE (1): NPN predio = NPN novedad (deberían ser distintos) o falta alguno */
+    CASE 
+      WHEN e.np_enp IS NULL OR e.np_enp = '' OR p.np_predio IS NULL OR p.np_predio = '' THEN TRUE
+      WHEN e.np_enp = p.np_predio THEN TRUE
+      ELSE FALSE
+    END AS fail_distinto,
+    /* INCUMPLE (2): el NPN de la novedad ya existe en la tabla de predios */
+    CASE 
+      WHEN e.np_enp IS NULL OR e.np_enp = '' THEN TRUE
+      WHEN EXISTS (SELECT 1 FROM all_pred ap WHERE ap.np_existente = e.np_enp) THEN TRUE
+      ELSE FALSE
+    END AS fail_no_existe_fuera
+  FROM enp e
+  LEFT JOIN pred p ON p.id_operacion = e.id_operacion
+)
+SELECT
+  '883'::text                                        AS regla,
+  'ILC_EstructuraNovedadNumeroPredial'::text         AS tabla,
+  'Cambio_Numero_Predial'::text                      AS objeto,
+  c.objectid,
+  c.globalid,
+  c.id_operacion,
+  NULL::text                                         AS npn,
+  'tipo='||c.tipo_novedad
+    ||', np_predio='||COALESCE(c.np_predio,'<NULL>')
+    ||', np_enp='||COALESCE(c.np_enp,'<NULL>')       AS valor,
+  'INCUMPLE: '
+    || CASE WHEN c.fail_distinto THEN '[NPN de predio = NPN de novedad o faltante] ' ELSE '' END
+    || CASE WHEN c.fail_no_existe_fuera THEN '[NPN de novedad ya existe en ILC_Predio] ' ELSE '' END
+                                                  AS descripcion,
+  FALSE                                             AS cumple,
+  NOW()                                             AS created_at,
+  NOW()                                             AS updated_at
+FROM comp c
+WHERE c.fail_distinto OR c.fail_no_existe_fuera
+ORDER BY c.id_operacion, c.objectid;
+
+--884
+DROP TABLE IF EXISTS reglas.regla_884;
+
+CREATE TABLE reglas.regla_884 AS
+WITH enp AS (
+  SELECT
+    btrim(d.id_operacion_predio)                                    AS id_operacion,
+    d.objectid,
+    d.globalid,
+    UPPER(btrim(d.novedad_numero_tipo))                             AS tipo_novedad,
+    btrim(d.novedad_numero_predial)                                  AS numero_predial,
+    LENGTH(btrim(d.novedad_numero_predial))                          AS len_np,
+    SUBSTRING(btrim(d.novedad_numero_predial) FROM 18 FOR 1)         AS dig18,
+    SUBSTRING(btrim(d.novedad_numero_predial) FROM 22 FOR 1)         AS dig22
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) LIKE 'CAMBIO_NUMERO_PREDIAL%'
+),
+comp AS (
+  SELECT
+    e.*,
+    /* Longitud mínima para evaluar 18 y 22 */
+    (e.len_np IS NULL OR e.len_np < 22)                                                AS fail_len,
+    /* Dígito 18: debe existir y ser 0–9 (no A–Z) */
+    NOT (e.len_np >= 18 AND e.dig18 ~ '^[0-9]$')                                       AS fail_dig18,
+    /* Dígito 22: debe existir y ser distinto de '2' */
+    NOT (e.len_np >= 22 AND e.dig22 IS NOT NULL AND e.dig22 <> '2')                    AS fail_dig22
+  FROM enp e
+)
+SELECT
+  '884'::text                                        AS regla,
+  'ILC_EstructuraNovedadNumeroPredial'::text         AS tabla,
+  'Cambio_Numero_Predial_digitos_18y22'::text        AS objeto,
+  c.objectid,
+  c.globalid,
+  c.id_operacion,
+  NULL::text                                         AS npn,
+  'tipo='||c.tipo_novedad
+    ||', len='||COALESCE(c.len_np,0)
+    ||', dig18='||COALESCE(c.dig18,'<NULL>')
+    ||', dig22='||COALESCE(c.dig22,'<NULL>')         AS valor,
+  'INCUMPLE: '
+    || CASE WHEN c.fail_len   THEN '[longitud < 22] '                 ELSE '' END
+    || CASE WHEN c.fail_dig18 THEN '[dígito18 no numérico (0–9)] '    ELSE '' END
+    || CASE WHEN c.fail_dig22 THEN '[dígito22 = 2 o ausente] '        ELSE '' END
+                                                     AS descripcion,
+  FALSE                                              AS cumple,
+  NOW()                                              AS created_at,
+  NOW()                                              AS updated_at
+FROM comp c
+WHERE c.fail_len OR c.fail_dig18 OR c.fail_dig22
+ORDER BY c.id_operacion, c.objectid;
+
+
+-- Regla 885 
+DROP TABLE IF EXISTS reglas.regla_885;
+
+CREATE TABLE reglas.regla_885 AS
+WITH enp AS (   -- id_operacion con cambios de número
+  SELECT DISTINCT
+    btrim(d.id_operacion_predio)        AS id_operacion
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) LIKE 'CAMBIO_NUMERO_PREDIAL%'
+),
+pred AS (       -- NPN actual del predio
+  SELECT
+    btrim(p.id_operacion)               AS id_operacion,
+    btrim(p.numero_predial_nacional)    AS np_predio
+  FROM preprod.t_ilc_predio p
+),
+lip AS (        -- universo del listado inicial (AJUSTA si el nombre/columna difiere)
+  SELECT DISTINCT btrim(l.numero_predial) AS np_listado
+  FROM preprod.listado_inicial_de_predios l
+),
+comp AS (
+  SELECT
+    e.id_operacion,
+    p.np_predio,
+    /* incumple si el NPN actual existe en el listado inicial */
+    CASE 
+      WHEN p.np_predio IS NULL OR p.np_predio = '' THEN TRUE
+      WHEN EXISTS (SELECT 1 FROM lip li WHERE li.np_listado = p.np_predio) THEN TRUE
+      ELSE FALSE
+    END AS fail_en_listado
+  FROM enp e
+  LEFT JOIN pred p ON p.id_operacion = e.id_operacion
+)
+SELECT
+  '885'::text                                       AS regla,
+  'ILC_Predio'::text                                AS tabla,
+  'NPN_vs_ListadoInicial'::text                     AS objeto,
+  NULL::bigint                                      AS objectid,
+  NULL::uuid                                        AS globalid,
+  c.id_operacion,
+  c.np_predio                                       AS npn,
+  'np_predio='||COALESCE(c.np_predio,'<NULL>')      AS valor,
+  'INCUMPLE: Numero_Predial_Nacional del predio coincide con un valor del listado inicial (debería ser distinto tras el cambio).'
+                                                    AS descripcion,
+  FALSE                                             AS cumple,
+  NOW()                                             AS created_at,
+  NOW()                                             AS updated_at
+FROM comp c
+WHERE c.fail_en_listado
+ORDER BY c.id_operacion;
+
+--886
+DROP TABLE IF EXISTS reglas.regla_886;
+
+CREATE TABLE reglas.regla_886 AS
+WITH enp AS (
+  SELECT DISTINCT
+    btrim(d.id_operacion_predio)        AS id_operacion,
+    UPPER(btrim(d.novedad_numero_tipo)) AS tipo_novedad
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE UPPER(btrim(d.novedad_numero_tipo)) LIKE 'CAMBIO_NUMERO_PREDIAL%'
+),
+pred AS (
+  SELECT
+    btrim(p.id_operacion)               AS id_operacion,
+    btrim(p.numero_predial_nacional)    AS np_predio,
+    LENGTH(btrim(p.numero_predial_nacional))                  AS len_np,
+    SUBSTRING(btrim(p.numero_predial_nacional) FROM 18 FOR 1) AS dig18
+  FROM preprod.t_ilc_predio p
+),
+comp AS (
+  SELECT
+    e.id_operacion,
+    e.tipo_novedad,
+    p.np_predio,
+    p.len_np,
+    p.dig18,
+    /* Falla si longitud < 18, o si dig18 no es letra A–Z */
+    (p.len_np < 18 OR p.dig18 IS NULL OR p.dig18 !~ '^[A-Z]$') AS fail_dig18
+  FROM enp e
+  LEFT JOIN pred p ON p.id_operacion = e.id_operacion
+)
+SELECT
+  '886'::text                                        AS regla,
+  'ILC_Predio'::text                                 AS tabla,
+  'NPN_digito18_AZ'::text                            AS objeto,
+  NULL::bigint                                       AS objectid,
+  NULL::uuid                                         AS globalid,
+  c.id_operacion,
+  c.np_predio                                        AS npn,
+  'tipo='||c.tipo_novedad
+    ||', len='||COALESCE(c.len_np,0)
+    ||', dig18='||COALESCE(c.dig18,'<NULL>')         AS valor,
+  CASE
+    WHEN c.fail_dig18 THEN 'INCUMPLE: dígito 18 no es letra A–Z'
+    ELSE 'CUMPLE: dígito 18 es letra A–Z'
+  END                                                AS descripcion,
+  NOT c.fail_dig18                                   AS cumple,
+  NOW()                                              AS created_at,
+  NOW()                                              AS updated_at
+FROM comp c
+ORDER BY c.id_operacion;
+
+
+--682
+DROP TABLE IF EXISTS reglas.regla_682;
+
+CREATE TABLE reglas.regla_682 AS
+WITH pred AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)               AS id_operacion,
+    btrim(p.numero_predial_nacional)    AS npn,
+    btrim(p.departamento)               AS depto,
+    SUBSTRING(btrim(p.numero_predial_nacional) FROM 1 FOR 2) AS prefijo_np
+  FROM preprod.t_ilc_predio p
+),
+comp AS (
+  SELECT
+    objectid,
+    globalid,
+    id_operacion,
+    npn,
+    depto,
+    prefijo_np,
+    (depto IS NULL OR prefijo_np IS NULL OR prefijo_np <> depto) AS fail_match
+  FROM pred
+)
+SELECT
+  '682'::text                                        AS regla,
+  'ILC_Predio'::text                                 AS tabla,
+  'PrefijoNPN_vs_Departamento'::text                 AS objeto,
+  c.objectid,
+  c.globalid,
+  c.id_operacion,
+  c.npn,
+  'npn='||COALESCE(c.npn,'<NULL>')
+    ||', prefijo_np='||COALESCE(c.prefijo_np,'<NULL>')
+    ||', depto='||COALESCE(c.depto,'<NULL>')         AS valor,
+  CASE
+    WHEN c.fail_match THEN 'INCUMPLE: Prefijo (1-2) del NPN no coincide con el Departamento'
+    ELSE 'CUMPLE: Prefijo (1-2) del NPN coincide con el Departamento'
+  END                                                AS descripcion,
+  NOT c.fail_match                                   AS cumple,
+  NOW()                                              AS created_at,
+  NOW()                                              AS updated_at
+FROM comp c
+ORDER BY c.id_operacion, c.objectid;
+
+--683
+DROP TABLE IF EXISTS reglas.regla_683;
+
+CREATE TABLE reglas.regla_683 AS
+WITH pred AS (
+  SELECT
+    p.objectid,
+    p.globalid,
+    btrim(p.id_operacion)               AS id_operacion,
+    btrim(p.numero_predial_nacional)    AS npn,
+    btrim(p.municipio)                  AS municipio,
+    SUBSTRING(btrim(p.numero_predial_nacional) FROM 3 FOR 3) AS cod_municipio
+  FROM preprod.t_ilc_predio p
+),
+comp AS (
+  SELECT
+    objectid,
+    globalid,
+    id_operacion,
+    npn,
+    municipio,
+    cod_municipio,
+    (municipio IS NULL OR cod_municipio IS NULL OR cod_municipio <> municipio) AS fail_match
+  FROM pred
+)
+SELECT
+  '683'::text                                        AS regla,
+  'ILC_Predio'::text                                 AS tabla,
+  'CodMunicipio_vs_NPN'::text                        AS objeto,
+  c.objectid,
+  c.globalid,
+  c.id_operacion,
+  c.npn,
+  'npn='||COALESCE(c.npn,'<NULL>')
+    ||', cod_municipio='||COALESCE(c.cod_municipio,'<NULL>')
+    ||', municipio='||COALESCE(c.municipio,'<NULL>') AS valor,
+  CASE
+    WHEN c.fail_match THEN 'INCUMPLE: dígitos (3-5) del NPN no coinciden con Municipio'
+    ELSE 'CUMPLE: dígitos (3-5) del NPN coinciden con Municipio'
+  END                                                AS descripcion,
+  NOT c.fail_match                                   AS cumple,
+  NOW()                                              AS created_at,
+  NOW()                                              AS updated_at
+FROM comp c
+ORDER BY c.id_operacion, c.objectid;
