@@ -571,148 +571,153 @@ ORDER BY objectid;
 
 
 --693
--- === REGLA 693 (1 fila por id_operacion) ===
-DROP TABLE IF EXISTS reglas.regla_693;
 
-CREATE TABLE reglas.regla_693 AS
-WITH base_predio AS (
+
+DROP TABLE IF EXISTS reglas_preprod.regla_693;
+
+CREATE TABLE reglas_preprod.regla_693 AS
+WITH base_predio AS (         -- Predios + flags básicos
   SELECT 
     p.objectid,
     p.globalid,
-    lower(btrim(p.id_operacion))       AS id_operacion,  -- normalizado
+    lower(btrim(p.id_operacion))       AS id_operacion,   -- normalizado
     p.numero_predial_nacional          AS npn,
     p.condicion_predio,
-    CASE 
-      WHEN lower(btrim(p.condicion_predio)) IN (
+    /* Conjunto del 1er enunciado (INCLUYE Informal) */
+    (lower(btrim(p.condicion_predio)) IN (
+      'nph',
+      'ph.matriz','ph_matriz',
+      'condominio.matriz','condominio_matriz',
+      'condominio.unidad_predial','condominio_unidad_predial',
+      'via','vía',
+      'bien_uso_publico','bien_uso_público',
+      'parque_cementerio.matriz',
+      'informal'
+    )) AS es_cond_valida_predio,
+    /* Excepción: “Informal en altura”: pos 22 = '2' y pos 27-30 <> '0000' */
+    (lower(btrim(p.condicion_predio)) = 'informal'
+     AND substring(p.numero_predial_nacional FROM 22 FOR 1) = '2'
+     AND substring(p.numero_predial_nacional FROM 27 FOR 4) <> '0000') AS es_informal_en_altura
+  FROM preprod.t_ilc_predio p
+),
+exc_novedad AS (              -- Exención por novedades (id_operacion)
+  SELECT DISTINCT lower(btrim(d.id_operacion_predio)) AS id_operacion
+  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  WHERE lower(btrim(d.novedad_numero_tipo)) IN (
+    'cancelacion',
+    'cancelacion_por_desenglobe',
+    'cancelacion_por_englobe'
+  )
+),
+pf AS (                       -- Predio + flags de exención consolidados
+  SELECT
+    b.*,
+    EXISTS (SELECT 1 FROM exc_novedad e WHERE e.id_operacion = b.id_operacion) AS excl_por_novedad,
+    ( EXISTS (SELECT 1 FROM exc_novedad e WHERE e.id_operacion = b.id_operacion)
+      OR b.es_informal_en_altura ) AS es_exento_predio
+  FROM base_predio b
+),
+-- 1) LADO PREDIO: cada id_operacion debe tener EXACTAMENTE 1 CR_Terreno (si aplica)
+predio_terrenos AS (
+  SELECT 
+    p.id_operacion,
+    MIN(p.objectid) AS predio_objectid,
+    MIN(p.globalid) AS predio_globalid,
+    MIN(p.npn)      AS npn,
+    MIN(p.condicion_predio) AS condicion_predio,
+    BOOL_OR(p.es_cond_valida_predio) AS es_cond_valida_predio,
+    BOOL_OR(p.es_informal_en_altura) AS es_informal_en_altura,
+    BOOL_OR(p.excl_por_novedad)      AS excl_por_novedad,
+    BOOL_OR(p.es_exento_predio)      AS es_exento_predio,
+    COUNT(t.objectid)                AS n_terrenos
+  FROM pf p
+  LEFT JOIN preprod.t_cr_terreno t 
+    ON lower(btrim(t.id_operacion_predio)) = p.id_operacion
+  GROUP BY p.id_operacion
+),
+-- 2) LADO TERRENO: cada CR_Terreno (si aplica) debe tener EXACTAMENTE 1 predio del conjunto (SIN 'informal')
+terreno_predios AS (
+  SELECT
+    idop,
+    COUNT(*) FILTER (
+      WHERE cond_ok_terreno AND NOT es_exento_predio
+    ) AS n_predios_validos,
+    -- el terreno queda exento si hay novedad o si existe informal_en_altura en su id_operacion
+    BOOL_OR(excl_por_novedad)      AS exento_por_novedad_terr,
+    BOOL_OR(es_informal_en_altura) AS exento_por_informal_terr
+  FROM (
+    SELECT
+      lower(btrim(t.id_operacion_predio)) AS idop,
+      /* Conjunto del 2° enunciado (SIN 'informal') */
+      (lower(btrim(p.condicion_predio)) IN (
         'nph',
         'ph.matriz','ph_matriz',
         'condominio.matriz','condominio_matriz',
         'condominio.unidad_predial','condominio_unidad_predial',
         'via','vía',
         'bien_uso_publico','bien_uso_público',
-        'parque_cementerio.matriz',
-        'informal'
-      ) THEN TRUE ELSE FALSE
-    END AS es_condicion_validada,
-    CASE 
-      WHEN lower(btrim(p.condicion_predio)) = 'informal'
-       AND substring(p.numero_predial_nacional FROM 22 FOR 1) = '2'
-       AND substring(p.numero_predial_nacional FROM 27 FOR 4) <> '0000'
-      THEN TRUE ELSE FALSE
-    END AS es_informal_en_altura
-  FROM preprod.t_ilc_predio p
+        'parque_cementerio.matriz'
+      )) AS cond_ok_terreno,
+      COALESCE(p.excl_por_novedad, FALSE)      AS excl_por_novedad,
+      COALESCE(p.es_informal_en_altura, FALSE) AS es_informal_en_altura,
+      COALESCE(p.es_exento_predio, FALSE)      AS es_exento_predio
+    FROM preprod.t_cr_terreno t
+    LEFT JOIN pf p
+      ON p.id_operacion = lower(btrim(t.id_operacion_predio))
+  ) x
+  GROUP BY idop
 ),
-exc_por_novedad AS (
+final AS (
   SELECT
-    lower(btrim(d.id_operacion_predio)) AS id_operacion,
-    BOOL_OR(
-      lower(btrim(d.novedad_numero_tipo)) IN (
-        'cancelacion',
-        'cancelacion_por_englobe',
-        'desenglobe_division_material'   -- = Cancelacion_por_Desenglobe
-      )
-    ) AS excl_por_novedad
-  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
-  GROUP BY lower(btrim(d.id_operacion_predio))
-),
-predio_terrenos AS (
-  SELECT 
-    b.id_operacion,
-    MAX(b.objectid) AS predio_objectid,
-    MAX(b.globalid) AS predio_globalid,
-    MAX(b.npn)      AS npn,
-    MAX(b.condicion_predio) AS condicion_predio,
-    BOOL_OR(b.es_condicion_validada)  AS es_condicion_validada,
-    BOOL_OR(b.es_informal_en_altura)  AS es_informal_en_altura,
-    COALESCE(BOOL_OR(e.excl_por_novedad), FALSE) AS excl_por_novedad,
-    COUNT(t.objectid) AS n_terrenos
-  FROM base_predio b
-  LEFT JOIN exc_por_novedad e
-    ON e.id_operacion = b.id_operacion
-  LEFT JOIN preprod.t_cr_terreno t 
-    ON lower(btrim(t.id_operacion_predio)) = b.id_operacion
-  GROUP BY b.id_operacion
-),
-terreno_predios AS (
-  SELECT
-    lower(btrim(t.id_operacion_predio)) AS id_operacion,
-    COUNT(*) FILTER (WHERE bp.es_condicion_validada) AS n_predios_validos
-  FROM preprod.t_cr_terreno t
-  LEFT JOIN base_predio bp
-    ON bp.id_operacion = lower(btrim(t.id_operacion_predio))
-  GROUP BY lower(btrim(t.id_operacion_predio))
-),
-union_lados AS (
-  SELECT
-    COALESCE(pt.id_operacion, tp.id_operacion) AS id_operacion,
-    pt.predio_objectid,
-    pt.predio_globalid,
-    pt.npn,
-    pt.condicion_predio,
-    COALESCE(pt.es_condicion_validada, FALSE)  AS es_condicion_validada,
-    COALESCE(pt.es_informal_en_altura, FALSE)  AS es_informal_en_altura,
-    COALESCE(pt.excl_por_novedad, FALSE)       AS excl_por_novedad,
-    COALESCE(pt.n_terrenos, 0)                 AS n_terrenos,
-    COALESCE(tp.n_predios_validos, 0)          AS n_predios_validos
-  FROM predio_terrenos pt
+    COALESCE(pr.id_operacion, tp.idop) AS id_operacion,
+    pr.predio_objectid,
+    pr.predio_globalid,
+    pr.npn,
+    pr.condicion_predio,
+    pr.es_cond_valida_predio,
+    pr.es_informal_en_altura,
+    pr.excl_por_novedad,
+    pr.es_exento_predio,
+    pr.n_terrenos,
+    COALESCE(tp.n_predios_validos, 0) AS n_predios_validos,
+    (tp.idop IS NOT NULL)             AS hay_terreno,
+    (COALESCE(tp.exento_por_novedad_terr, FALSE) OR COALESCE(tp.exento_por_informal_terr, FALSE)) AS es_exento_terreno
+  FROM predio_terrenos pr
   FULL JOIN terreno_predios tp
-    ON tp.id_operacion = pt.id_operacion
-),
-flags AS (
-  SELECT
-    u.*,
-    ( u.es_condicion_validada
-      AND NOT u.excl_por_novedad
-      AND NOT u.es_informal_en_altura
-      AND u.n_terrenos <> 1 ) AS fail_predio,
-    ( NOT u.excl_por_novedad
-      AND u.n_predios_validos <> 1 ) AS fail_terreno
-  FROM union_lados u
-),
-collapsed AS (
-  SELECT
-    id_operacion,
-    MIN(predio_objectid)            AS predio_objectid,
-    MIN(predio_globalid)            AS predio_globalid,
-    MIN(npn)                        AS npn,
-    MIN(condicion_predio)           AS condicion_predio,
-    BOOL_OR(es_condicion_validada)  AS es_condicion_validada,
-    BOOL_OR(es_informal_en_altura)  AS es_informal_en_altura,
-    BOOL_OR(excl_por_novedad)       AS excl_por_novedad,
-    MAX(n_terrenos)                 AS n_terrenos,
-    MAX(n_predios_validos)          AS n_predios_validos,
-    BOOL_OR(fail_predio)            AS fail_predio,
-    BOOL_OR(fail_terreno)           AS fail_terreno
-  FROM flags
-  GROUP BY id_operacion
+    ON tp.idop = pr.id_operacion
 )
 SELECT
-  '693'::text                                                                    AS regla,
-  'ILC_Predio,CR_Terreno,ILC_DatosAdicionalesLevantamientoCatastral'::text      AS clases_asociadas,
-  'Condicion_Predio,Novedad_Numeros_Prediales'::text                             AS variable_asociada,
-  COALESCE(c.predio_objectid, 0)                                                 AS objectid,
-  COALESCE(c.predio_globalid, 'N/A')::text                                       AS globalid,
-  c.id_operacion,
-  c.npn,
+  '693'::text AS regla,
+  'ILC_Predio,CR_Terreno,ILC_DatosAdicionalesLevantamientoCatastral'::text AS clases_asociadas,
+  'Condicion_Predio,Novedad_Numeros_Prediales'::text AS variable_asociada,
+  COALESCE(predio_objectid, 0)           AS objectid,
+  COALESCE(predio_globalid, 'N/A')::text AS globalid,
+  id_operacion,
+  npn,
+  -- Mensaje por lado, aplicando excepciones y “gating” correcto
   CONCAT_WS(' | ',
-    CASE WHEN c.fail_predio  THEN
-      'INCUMPLE (Predio): condicion_predio='||COALESCE(c.condicion_predio,'(null)')||
-      ', n_terrenos='||c.n_terrenos||
-      ', excl_por_novedad='||(CASE WHEN c.excl_por_novedad THEN 'true' ELSE 'false' END)||
-      ', informal_en_altura='||(CASE WHEN c.es_informal_en_altura THEN 'true' ELSE 'false' END)
+    CASE
+      WHEN (es_cond_valida_predio AND NOT es_exento_predio AND n_terrenos <> 1)
+      THEN 'INCUMPLE (Predio): debe tener 1 Terreno; n_terrenos='||COALESCE(n_terrenos,0)
     END,
-    CASE WHEN c.fail_terreno THEN
-      'INCUMPLE (Terreno): n_predios_validos='||c.n_predios_validos||
-      ', excl_por_novedad='||(CASE WHEN c.excl_por_novedad THEN 'true' ELSE 'false' END)
+    CASE
+      WHEN (hay_terreno AND NOT es_exento_terreno AND n_predios_validos <> 1)
+      THEN 'INCUMPLE (Terreno): debe tener 1 Predio del conjunto; n_predios_validos='||n_predios_validos
     END
   ) AS descripcion,
-  ('n_terrenos='||c.n_terrenos||'; n_predios_validos='||c.n_predios_validos)     AS valor,
-  FALSE                                                                          AS cumple,
-  NOW()                                                                          AS created_at,
-  NOW()                                                                          AS updated_at
-FROM collapsed c
-WHERE c.fail_predio OR c.fail_terreno
-ORDER BY c.id_operacion, c.npn NULLS LAST;
+  ('n_terrenos='||COALESCE(n_terrenos,0)||
+   '; n_predios_validos='||COALESCE(n_predios_validos,0)||
+   '; aplica_predio='||( (es_cond_valida_predio AND NOT es_exento_predio)::text )||
+   '; aplica_terreno='||( (hay_terreno AND NOT es_exento_terreno)::text )
+  ) AS valor,
+  FALSE AS cumple,
+  NOW()  AS created_at,
+  NOW()  AS updated_at
+FROM final
+WHERE (es_cond_valida_predio AND NOT es_exento_predio AND n_terrenos <> 1)     -- 1er enunciado
+   OR (hay_terreno AND NOT es_exento_terreno AND n_predios_validos <> 1)       -- 2° enunciado
+ORDER BY id_operacion, npn NULLS LAST;
+
 
 --694
 DROP TABLE IF EXISTS preprod.t_cr_predio_copropiedad;
@@ -793,12 +798,11 @@ WHERE v.n_copropiedad = 0
 ORDER BY v.id_operacion, v.npn;
 
 
---695
-ALTER TABLE preprod.t_cr_datosphcondominio
-  ADD COLUMN IF NOT EXISTS id_operacion_predio VARCHAR(50);
-DROP TABLE IF EXISTS reglas.regla_695;
+--695 para datos en prodcucción 
 
-CREATE TABLE reglas.regla_695 AS
+DROP TABLE IF EXISTS reglas_prod.regla_695;
+
+CREATE TABLE reglas_prod.regla_695 AS
 WITH predio_matriz AS (
   SELECT
     p.objectid,
@@ -816,20 +820,24 @@ WITH predio_matriz AS (
   FROM preprod.t_ilc_predio p
 ),
 copro AS (
-  -- Suma de coeficientes por predio (las filas deben referenciar el predio MATRIZ)
+  -- Suma de coeficientes por predio MATRIZ (usa id_operacion_predio existente)
   SELECT
-    btrim(c.id_operacion_predio) AS id_operacion,
-    COUNT(*)                     AS n_filas_copro,
-    COALESCE(SUM(c.coeficiente), 0)::numeric AS sum_coef   -- <- aquí el cambio
+    btrim(c.id_operacion_predio)            AS id_operacion,
+    COUNT(*)                                 AS n_filas_copro,
+    COALESCE(SUM(c.coeficiente), 0)::numeric AS sum_coef
   FROM preprod.t_cr_predio_copropiedad c
   GROUP BY btrim(c.id_operacion_predio)
 ),
 datos_ph AS (
   -- Área total del terreno del predio MATRIZ
+  -- Se obtiene id_operacion enlazando predio_guid -> globalid
   SELECT
-    btrim(d.id_operacion_predio)  AS id_operacion,
-    d.area_total_terreno::numeric AS area_total_terreno
+    btrim(p.id_operacion)                  AS id_operacion,
+    MAX(d.area_total_terreno)::numeric     AS area_total_terreno
   FROM preprod.t_cr_datosphcondominio d
+  JOIN preprod.t_ilc_predio p
+    ON p.globalid = d.predio_guid
+  GROUP BY btrim(p.id_operacion)
 ),
 base AS (
   SELECT
@@ -847,9 +855,9 @@ base AS (
   WHERE pm.es_matriz
 )
 SELECT
-  '695'::text                                                      AS regla,
-  'ILC_Predio,CR_Predio_Copropiedad,CR_DatosPHCondominio'::text    AS clases_asociadas,
-  'Condicion_Predio,Coeficiente,Area_Total_Terreno'::text          AS variable_asociada,
+  '695'::text                                                   AS regla,
+  'ILC_Predio,CR_Predio_Copropiedad,CR_DatosPHCondominio'::text AS clases_asociadas,
+  'Condicion_Predio,Coeficiente,Area_Total_Terreno'::text       AS variable_asociada,
   b.objectid,
   b.globalid,
   b.id_operacion,
@@ -865,7 +873,7 @@ SELECT
   END AS descripcion,
   ('sum_coef='||COALESCE(b.sum_coef::text,'NULL')||
    '; area_total_terreno='||COALESCE(b.area_total_terreno::text,'NULL')||
-   '; n_filas_copro='||b.n_filas_copro)::text                      AS valor,
+   '; n_filas_copro='||b.n_filas_copro)::text                 AS valor,
   FALSE AS cumple,
   NOW() AS created_at,
   NOW() AS updated_at
@@ -875,35 +883,33 @@ WHERE
    OR b.n_filas_copro = 0
    OR ABS(b.sum_coef - b.area_total_terreno) > 1e-6
 ORDER BY b.id_operacion, b.npn;
+-- 696 (join por predio_guid ↔ globalid, sin usar id_operacion en PHC)
+DROP TABLE IF EXISTS reglas_prod.regla_696;
 
-
-
---696
-DROP TABLE IF EXISTS reglas.regla_696;
-
-CREATE TABLE reglas.regla_696 AS
+CREATE TABLE reglas_prod.regla_696 AS
 WITH predio AS (
   SELECT
     p.objectid,
     p.globalid,
-    btrim(p.id_operacion)            AS id_operacion,
-    p.numero_predial_nacional        AS npn,
+    btrim(p.id_operacion)                           AS id_operacion,
+    p.numero_predial_nacional                       AS npn,
     substring(p.numero_predial_nacional FROM 22 FOR 9) AS npn_22_30,
     CASE WHEN substring(p.numero_predial_nacional FROM 22 FOR 9) IN ('800000000','900000000')
       THEN TRUE ELSE FALSE END AS requiere_phc
   FROM preprod.t_ilc_predio p
 ),
 phc AS (
+  /* Agrupa por el GUID del predio matriz registrado en CR_DatosPHCondominio */
   SELECT
-    btrim(d.id_operacion_predio)     AS id_operacion,
-    COUNT(*)                         AS n_phc,
-    -- banderas de diligenciamiento mínimo (ajusta si quieres todos obligatorios)
+    d.predio_guid                                   AS globalid,   -- clave para enlazar con ILC_Predio
+    COUNT(*)                                        AS n_phc,
+    -- banderas de diligenciamiento mínimo
     BOOL_OR(d.area_total_terreno IS NOT NULL)                 AS ok_area_total_terreno,
     BOOL_OR(d.area_total_construida IS NOT NULL)              AS ok_area_total_construida,
     BOOL_OR(d.numero_torres IS NOT NULL)                      AS ok_numero_torres,
     BOOL_OR(d.total_unidades_privadas IS NOT NULL)            AS ok_total_unidades_privadas
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY btrim(d.id_operacion_predio)
+  GROUP BY d.predio_guid
 ),
 base AS (
   SELECT
@@ -920,7 +926,7 @@ base AS (
     COALESCE(c.ok_total_unidades_privadas,FALSE)AS ok_total_unidades_privadas
   FROM predio pr
   LEFT JOIN phc c
-    ON c.id_operacion = pr.id_operacion
+    ON c.globalid = pr.globalid                  -- <<< clave: predio_guid ↔ globalid
 )
 SELECT
   '696'::text                                                                   AS regla,
@@ -960,11 +966,10 @@ WHERE
    OR (NOT b.requiere_phc AND b.n_phc > 0)
 ORDER BY b.id_operacion, b.npn;
 
---697
+-- 697 (PHC por predio_guid ↔ globalid; sin usar id_operacion_predio)
+DROP TABLE IF EXISTS reglas_prod.regla_697;
 
-DROP TABLE IF EXISTS reglas.regla_697;
-
-CREATE TABLE reglas.regla_697 AS
+CREATE TABLE reglas_prod.regla_697 AS
 WITH predio_base AS (
   SELECT
     p.objectid,
@@ -989,23 +994,25 @@ conteo_unidades AS (
   FROM unidades
   GROUP BY pref22
 ),
--- Predio matriz (mismo prefijo y sufijo = 00000000) para anclar CR_DatosPHCondominio
+-- Predio MATRIZ (mismo prefijo y sufijo = 00000000) para anclar CR_DatosPHCondominio
 matriz AS (
-  SELECT pb.pref22,
-         MAX(pb.objectid)    AS matriz_objectid,
-         MAX(pb.globalid)    AS matriz_globalid,
-         MAX(pb.id_operacion) AS matriz_id_operacion,
-         MAX(pb.npn)         AS matriz_npn
+  SELECT
+    pb.pref22,
+    MAX(pb.objectid)     AS matriz_objectid,
+    MAX(pb.globalid)     AS matriz_globalid,
+    MAX(pb.id_operacion) AS matriz_id_operacion,
+    MAX(pb.npn)          AS matriz_npn
   FROM predio_base pb
   WHERE pb.suf_23_30 = '00000000' AND pb.c22 IN ('8','9')
   GROUP BY pb.pref22
 ),
--- CR_DatosPHCondominio por predio matriz
+-- CR_DatosPHCondominio por predio MATRIZ (usando predio_guid ↔ globalid)
 phc AS (
-  SELECT btrim(d.id_operacion_predio) AS id_operacion_predio,
-         COUNT(*) AS n_phc
+  SELECT
+    d.predio_guid AS matriz_globalid,
+    COUNT(*)      AS n_phc
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY btrim(d.id_operacion_predio)
+  GROUP BY d.predio_guid
 ),
 base AS (
   SELECT
@@ -1014,14 +1021,14 @@ base AS (
     u.id_operacion,
     u.npn,
     u.pref22,
-    COALESCE(cu.n_unidades,0)               AS n_unidades_prefijo,
+    COALESCE(cu.n_unidades,0)   AS n_unidades_prefijo,
     m.matriz_id_operacion,
     m.matriz_npn,
-    COALESCE(p.n_phc,0)                     AS n_phc_matriz
+    COALESCE(p.n_phc,0)         AS n_phc_matriz
   FROM unidades u
   LEFT JOIN conteo_unidades cu ON cu.pref22 = u.pref22
   LEFT JOIN matriz m           ON m.pref22 = u.pref22
-  LEFT JOIN phc p              ON p.id_operacion_predio = m.matriz_id_operacion
+  LEFT JOIN phc p              ON p.matriz_globalid = m.matriz_globalid
 )
 SELECT
   '697'::text                                       AS regla,
@@ -1047,13 +1054,10 @@ FROM base b
 WHERE b.n_unidades_prefijo < 2
    OR b.n_phc_matriz = 0
 ORDER BY b.pref22, b.npn;
+-- 698 (PREPROD) — PHC por predio_guid ↔ globalid; sin filtro branch en ILC_Predio
+DROP TABLE IF EXISTS reglas_preprod.regla_698;
 
---698
-
-
-DROP TABLE IF EXISTS reglas.regla_698;
-
-CREATE TABLE reglas.regla_698 AS
+CREATE TABLE reglas_preprod.regla_698 AS
 WITH predio_base AS (
   SELECT
     p.objectid,
@@ -1068,9 +1072,10 @@ WITH predio_base AS (
 unidades AS (               -- c22 en {8,9} y sufijo <> '00000000'
   SELECT *
   FROM predio_base
-  WHERE c22 IN ('8','9') AND suf_23_30 <> '00000000'
+  WHERE c22 IN ('8','9')
+    AND suf_23_30 <> '00000000'
 ),
-matriz AS (                 -- predio matriz: mismo prefijo y sufijo '00000000'
+matriz AS (                 -- predio MATRIZ: mismo prefijo y sufijo '00000000'
   SELECT
     pb.pref22,
     MAX(pb.objectid)      AS matriz_objectid,
@@ -1081,12 +1086,14 @@ matriz AS (                 -- predio matriz: mismo prefijo y sufijo '00000000'
   WHERE pb.c22 IN ('8','9') AND pb.suf_23_30 = '00000000'
   GROUP BY pb.pref22
 ),
-phc AS (                    -- existencia de CR_DatosPHCondominio para el matriz
+phc AS (                    -- existencia de CR_DatosPHCondominio (por predio_guid)
   SELECT
-    btrim(d.id_operacion_predio) AS id_operacion_predio,
-    COUNT(*)                     AS n_phc
+    d.predio_guid AS matriz_globalid,
+    COUNT(*)      AS n_phc
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY btrim(d.id_operacion_predio)
+  -- Si d.gdb_branch_id no existe, elimina la siguiente línea:
+  -- WHERE COALESCE(d.gdb_branch_id,0) = 0
+  GROUP BY d.predio_guid
 ),
 base AS (
   SELECT
@@ -1100,7 +1107,7 @@ base AS (
     COALESCE(p.n_phc,0) AS n_phc_matriz
   FROM unidades u
   LEFT JOIN matriz m ON m.pref22 = u.pref22
-  LEFT JOIN phc   p  ON p.id_operacion_predio = m.matriz_id_operacion
+  LEFT JOIN phc   p  ON p.matriz_globalid = m.matriz_globalid
 )
 SELECT
   '698'::text                                         AS regla,
@@ -1126,11 +1133,13 @@ WHERE b.matriz_id_operacion IS NULL
    OR b.n_phc_matriz = 0
 ORDER BY b.pref22, b.npn;
 
+
 --699
 
-DROP TABLE IF EXISTS reglas.regla_699;
+-- 699 — usar predio_guid ↔ globalid para PHC (mantener Terreno por id_operacion_predio)
+DROP TABLE IF EXISTS preprod.regla_699;
 
-CREATE TABLE reglas.regla_699 AS
+CREATE TABLE preprod.regla_699 AS
 WITH predio_target AS (
   SELECT
     p.objectid,
@@ -1148,15 +1157,15 @@ terreno_area AS (
   FROM preprod.t_cr_terreno t
   GROUP BY btrim(t.id_operacion_predio)
 ),
-phc AS (
+phc AS (  -- <<< cambio: enlazar por predio_guid ↔ ILC_Predio.globalid
   SELECT
-    btrim(d.id_operacion_predio)       AS id_operacion,
-    COUNT(*)                           AS n_phc,
-    MAX(d.area_total_terreno)::numeric           AS area_total_terreno,
-    MAX(d.area_total_terreno_comun)::numeric     AS area_total_terreno_comun,
-    MAX(d.area_total_terreno_privada)::numeric   AS area_total_terreno_privada
+    d.predio_guid                              AS globalid,
+    COUNT(*)                                   AS n_phc,
+    MAX(d.area_total_terreno)::numeric         AS area_total_terreno,
+    MAX(d.area_total_terreno_comun)::numeric   AS area_total_terreno_comun,
+    MAX(d.area_total_terreno_privada)::numeric AS area_total_terreno_privada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY btrim(d.id_operacion_predio)
+  GROUP BY d.predio_guid
 ),
 base AS (
   SELECT
@@ -1172,7 +1181,7 @@ base AS (
     h.area_total_terreno_privada
   FROM predio_target pr
   LEFT JOIN terreno_area tr ON tr.id_operacion = pr.id_operacion
-  LEFT JOIN phc          h  ON h.id_operacion  = pr.id_operacion
+  LEFT JOIN phc          h  ON h.globalid      = pr.globalid   -- <<< join por GUID
 )
 SELECT
   '699'::text                                                                 AS regla,
@@ -1219,10 +1228,11 @@ ORDER BY b.id_operacion, b.npn;
 
 -- Regla 700:
 
+-- 700 — PHC por predio_guid ↔ globalid (sin usar id_operacion_predio en PHC)
+--      CON branch solo en PHC; sin validar branch en UC
+DROP TABLE IF EXISTS reglas_preprod.regla_700;
 
-DROP TABLE IF EXISTS reglas.regla_700;
-
-CREATE TABLE reglas.regla_700 AS
+CREATE TABLE reglas_preprod.regla_700 AS
 WITH predio_base AS (
   SELECT
     p.objectid,
@@ -1251,12 +1261,12 @@ predios_prefijo AS (
   FROM matrices m
   JOIN predio_base pb ON pb.pref22 = m.pref22
 ),
--- Unidades de construcción por predio
+-- Unidades de construcción por predio (SIN filtro branch)
 uc_por_predio AS (
   SELECT
-    btrim(u.id_operacion_predio)      AS predio_id,
-    COALESCE(u.area_construccion, 0)::numeric        AS area_construccion,
-    COALESCE(u.area_privada_construida, 0)::numeric  AS area_privada_construida
+    btrim(u.id_operacion_predio)                    AS predio_id,
+    COALESCE(u.area_construccion, 0)::numeric       AS area_construccion,
+    COALESCE(u.area_privada_construida, 0)::numeric AS area_privada_construida
   FROM preprod.t_cr_unidadconstruccion u
 ),
 -- Sumas por MATRIZ, según condición del predio al que pertenece la UC
@@ -1284,14 +1294,15 @@ suma_areas AS (
   JOIN uc_por_predio u ON u.predio_id = pp.predio_id
   GROUP BY pp.matriz_id
 ),
--- PHCondominio del MATRIZ
+-- PHCondominio del MATRIZ (branch=0) usando predio_guid ↔ globalid
 phc AS (
   SELECT
-    btrim(d.id_operacion_predio) AS matriz_id,
-    COUNT(*) AS n_phc,
+    d.predio_guid                         AS matriz_globalid,
+    COUNT(*)                              AS n_phc,
     MAX(d.area_total_construida)::numeric AS area_total_construida
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY btrim(d.id_operacion_predio)
+  WHERE COALESCE(d.gdb_branch_id,0) = 0
+  GROUP BY d.predio_guid
 ),
 base AS (
   SELECT
@@ -1306,7 +1317,7 @@ base AS (
     h.area_total_construida        AS att_construida
   FROM matrices m
   LEFT JOIN suma_areas sa ON sa.matriz_id = m.id_operacion
-  LEFT JOIN phc        h  ON h.matriz_id  = m.id_operacion
+  LEFT JOIN phc        h  ON h.matriz_globalid = m.globalid
 )
 SELECT
   '700'::text                                                            AS regla,
@@ -1339,6 +1350,7 @@ FROM base b
 WHERE b.n_phc = 0
    OR ABS(COALESCE(b.att_construida, -1) - COALESCE(b.sum_total, 0)) > 1e-4
 ORDER BY b.id_operacion, b.npn;
+
 
 
 
@@ -1409,11 +1421,10 @@ FROM base b
 WHERE b.npn_14_17 = '0000'
    OR b.npn_18_21 = '0000'
 ORDER BY b.id_operacion, b.npn;
+--701 — usar predio_guid ↔ globalid para PHC (mantener Terreno por id_operacion_predio)
+DROP TABLE IF EXISTS reglas_preprod.regla_701;
 
---701
-DROP TABLE IF EXISTS reglas.regla_701;
-
-CREATE TABLE reglas.regla_701 AS
+CREATE TABLE reglas_preprod.regla_701 AS
 WITH params AS (
   SELECT 0.01::numeric AS tol
 ),
@@ -1457,10 +1468,10 @@ areas_uc AS (   -- Suma áreas privadas UC (CR_UnidadConstruccion)
 ),
 datos_ph AS (   -- Área privada reportada (DatosPH)
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,
     SUM(d.area_total_construida_privada)::numeric AS area_privada_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  GROUP BY d.predio_guid
 )
 SELECT
   '701'::text                      AS regla,
@@ -1477,8 +1488,8 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.id_operacion
-LEFT JOIN areas_uc uc ON uc.matriz_gid = m.globalid
+LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.globalid  -- Enlace por GUID
+LEFT JOIN areas_uc uc ON uc.matriz_gid = m.globalid  -- Enlace por GUID
 WHERE
       ph.area_privada_reportada IS NULL
    OR uc.suma_area_privada_uc IS NULL
@@ -1486,11 +1497,12 @@ WHERE
 ORDER BY m.id_operacion, m.npn;
 
 
+
 -- Regla 702:
 
-DROP TABLE IF EXISTS reglas.regla_702;
+DROP TABLE IF EXISTS reglas_preprod.regla_702;
 
-CREATE TABLE reglas.regla_702 AS
+CREATE TABLE reglas_preprod.regla_702 AS
 WITH params AS (
   SELECT 0.01::numeric AS tol
 ),
@@ -1534,10 +1546,10 @@ areas_uc AS (  -- Suma de áreas construidas desde CR_UnidadConstruccion
 ),
 datos_ph AS (  -- Área común reportada por matriz (CR_DatosPHCondominio)
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     SUM(d.area_total_construida_comun)::numeric AS area_comun_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  GROUP BY d.predio_guid
 )
 SELECT
   '702'::text                         AS regla,
@@ -1554,8 +1566,8 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.id_operacion
-LEFT JOIN areas_uc uc ON uc.matriz_gid = m.globalid
+LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
+LEFT JOIN areas_uc uc ON uc.matriz_gid = m.globalid  -- Enlace por GUID
 WHERE
       ph.area_comun_reportada IS NULL
    OR uc.suma_area_construida_uc IS NULL
@@ -1564,9 +1576,9 @@ ORDER BY m.id_operacion, m.npn;
 
 --703
 
-DROP TABLE IF EXISTS reglas.regla_703;
+DROP TABLE IF EXISTS reglas_preprod.regla_703;
 
-CREATE TABLE reglas.regla_703 AS
+CREATE TABLE reglas_preprod.regla_703 AS
 WITH matrices AS (  -- Predios que son PH.Matriz por ambas condiciones
   SELECT
     p.objectid,
@@ -1601,7 +1613,7 @@ max_torre AS (  -- Máximo numérico de NPN[25–26] entre unidades asociadas
 ),
 datos_ph AS (  -- Número de torres reportado para la matriz
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     d.numero_torres::int  AS num_torres_reportado
   FROM preprod.t_cr_datosphcondominio d
 )
@@ -1620,19 +1632,19 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.id_operacion
-LEFT JOIN max_torre  mt ON mt.matriz_gid = m.globalid
+LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
+LEFT JOIN max_torre  mt ON mt.matriz_gid = m.globalid  -- Enlace por GUID
 WHERE
       ph.num_torres_reportado IS NULL
    OR mt.max_torres IS NULL
    OR ph.num_torres_reportado <> mt.max_torres
 ORDER BY m.id_operacion, m.npn_matriz;
 
+
 --704
+DROP TABLE IF EXISTS reglas_preprod.regla_704;
 
-DROP TABLE IF EXISTS reglas.regla_704;
-
-CREATE TABLE reglas.regla_704 AS
+CREATE TABLE reglas_preprod.regla_704 AS
 WITH matrices AS (  -- Predios PH.Matriz (dos condiciones)
   SELECT
     p.objectid,
@@ -1660,7 +1672,7 @@ conteo_unidades AS (  -- Conteo de predios asociados por prefijo (excluye la pro
 ),
 datos_ph AS (  -- total_unidades_privadas reportado para la matriz
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     d.total_unidades_privadas::int AS total_privadas_reportado
   FROM preprod.t_cr_datosphcondominio d
 )
@@ -1680,18 +1692,19 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph      ph ON ph.id_operacion_matriz = m.id_operacion
+LEFT JOIN datos_ph      ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
 LEFT JOIN conteo_unidades cu ON cu.matriz_gid = m.globalid
 WHERE
       ph.total_privadas_reportado IS NULL
    OR cu.unidades_asociadas IS NULL
    OR ph.total_privadas_reportado <> cu.unidades_asociadas
 ORDER BY m.id_operacion, m.npn_matriz;
+
 --705
 
-DROP TABLE IF EXISTS reglas.regla_705;
+DROP TABLE IF EXISTS reglas_prod.regla_705;
 
-CREATE TABLE reglas.regla_705 AS
+CREATE TABLE reglas_prod.regla_705 AS
 WITH params AS (
   SELECT 0.01::numeric AS tol, 9377::int AS srid_m2
 ),
@@ -1702,7 +1715,7 @@ matrices AS (  -- Predios Condominio.Matriz (dos condiciones)
     btrim(p.id_operacion)              AS id_operacion,
     p.numero_predial_nacional          AS npn_matriz,
     substring(p.numero_predial_nacional FROM 1 FOR 25) AS npn_prefijo
-  FROM preprod.t_ilc_predio p
+  FROM prod.t_ilc_predio p
   WHERE p.numero_predial_nacional IS NOT NULL
     AND char_length(p.numero_predial_nacional) >= 30
     AND substring(p.numero_predial_nacional FROM 22 FOR 9) = '800000000'
@@ -1715,7 +1728,7 @@ unidades AS (  -- Unidades asociadas por prefijo (excluye la propia matriz)
     btrim(u.id_operacion)     AS id_operacion_unidad,
     u.numero_predial_nacional AS npn_unidad
   FROM matrices m
-  JOIN preprod.t_ilc_predio u
+  JOIN prod.t_ilc_predio u
     ON u.numero_predial_nacional IS NOT NULL
    AND char_length(u.numero_predial_nacional) >= 30
    AND substring(u.numero_predial_nacional FROM 1 FOR 25) = m.npn_prefijo
@@ -1730,7 +1743,7 @@ terreno_matriz AS (  -- área del terreno de la MATRIZ (desde shape)
       END
     ) AS area_matriz
   FROM matrices m
-  LEFT JOIN preprod.t_cr_terreno t
+  LEFT JOIN prod.t_cr_terreno t
     ON btrim(t.id_operacion_predio) = m.id_operacion
   GROUP BY m.globalid
 ),
@@ -1743,16 +1756,16 @@ terreno_unidades AS (  -- suma de áreas de terreno de las UNIDADES (desde shape
       END
     ) AS area_unidades
   FROM unidades u
-  LEFT JOIN preprod.t_cr_terreno t
+  LEFT JOIN prod.t_cr_terreno t
     ON btrim(t.id_operacion_predio) = u.id_operacion_unidad
   GROUP BY u.matriz_gid
 ),
 datos_ph AS (  -- área total de terreno reportada en DatosPH/Condominio
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     SUM(d.area_total_terreno)::numeric AS area_total_reportada
-  FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  FROM prod.t_cr_datosphcondominio d
+  GROUP BY d.predio_guid
 ),
 comparacion AS (  -- esperado = matriz + unidades
   SELECT
@@ -1765,7 +1778,7 @@ comparacion AS (  -- esperado = matriz + unidades
   FROM matrices m
   LEFT JOIN terreno_matriz   tm ON tm.matriz_gid = m.globalid
   LEFT JOIN terreno_unidades tu ON tu.matriz_gid = m.globalid
-  LEFT JOIN datos_ph         ph ON ph.id_operacion_matriz = m.id_operacion
+  LEFT JOIN datos_ph         ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
 )
 SELECT
   '705'::text                   AS regla,
@@ -1788,7 +1801,6 @@ WHERE
 ORDER BY c.id_operacion, c.npn;
 
 --706
-
 DROP TABLE IF EXISTS reglas.regla_706;
 
 CREATE TABLE reglas.regla_706 AS
@@ -1837,10 +1849,10 @@ area_unidades AS (  -- Σ áreas geográficas de terrenos de las unidades privad
 ),
 datos_ph AS (  -- Área total de terreno privada reportada en DatosPH
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     SUM(d.area_total_terreno_privada)::numeric AS area_privada_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  GROUP BY d.predio_guid
 )
 SELECT
   '706'::text                         AS regla,
@@ -1858,19 +1870,19 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph   ph ON ph.id_operacion_matriz = m.id_operacion
+LEFT JOIN datos_ph   ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
 LEFT JOIN area_unidades au ON au.matriz_gid = m.globalid
 WHERE
       ph.area_privada_reportada IS NULL
    OR au.area_privadas IS NULL
    OR ABS(ph.area_privada_reportada - au.area_privadas) > (SELECT tol FROM params)
 ORDER BY m.id_operacion, m.npn_matriz;
-
 --707
 
-DROP TABLE IF EXISTS reglas.regla_707;
 
-CREATE TABLE reglas.regla_707 AS
+DROP TABLE IF EXISTS reglas_preprod.regla_707;
+
+CREATE TABLE reglas_preprod.regla_707 AS
 WITH params AS (
   SELECT 0.01::numeric AS tol, 9377::int AS srid_m2
 ),
@@ -1901,10 +1913,10 @@ area_matriz AS (  -- área geográfica del terreno del MATRIZ (desde shape)
 ),
 datos_ph AS (  -- área total terreno común reportada
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     SUM(d.area_total_terreno_comun)::numeric AS area_comun_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  GROUP BY d.predio_guid  -- Cambio: se agrupa por predio_guid
 )
 SELECT
   '707'::text                   AS regla,
@@ -1923,15 +1935,17 @@ SELECT
   NOW() AS updated_at
 FROM matrices m
 LEFT JOIN area_matriz am ON am.matriz_gid = m.globalid
-LEFT JOIN datos_ph   ph ON ph.id_operacion_matriz = m.id_operacion
+LEFT JOIN datos_ph   ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
 WHERE
       ph.area_comun_reportada IS NULL
    OR am.area_geo_matriz    IS NULL
    OR ABS(ph.area_comun_reportada - am.area_geo_matriz) > (SELECT tol FROM params)
 ORDER BY m.id_operacion, m.npn_matriz;
 
---708
 
+
+--708
+--708
 
 DROP TABLE IF EXISTS reglas.regla_708;
 
@@ -1987,10 +2001,10 @@ uc_matriz AS (  -- Σ área_construccion de UC asociadas directamente al predio 
 ),
 datos_ph AS (  -- Área total construida reportada para la matriz
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     SUM(d.area_total_construida)::numeric AS area_total_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  GROUP BY d.predio_guid
 ),
 comparacion AS (
   SELECT
@@ -2003,7 +2017,7 @@ comparacion AS (
   FROM matrices m
   LEFT JOIN uc_unidades u ON u.matriz_gid = m.globalid
   LEFT JOIN uc_matriz   cm ON cm.matriz_gid = m.globalid
-  LEFT JOIN datos_ph    ph ON ph.id_operacion_matriz = m.id_operacion
+  LEFT JOIN datos_ph    ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
 )
 SELECT
   '708'::text                  AS regla,
@@ -2026,6 +2040,8 @@ WHERE
    OR ABS(c.area_reportada - c.area_esperada) > (SELECT tol FROM params)
 ORDER BY c.id_operacion, c.npn;
 
+
+--709
 
 --709
 
@@ -2073,10 +2089,10 @@ areas_priv_uc AS (  -- Σ área_privada_construida de UC de esas unidades
 ),
 datos_ph AS (  -- Área total construida PRIVADA reportada
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS id_operacion_matriz,  -- Cambio: se usa predio_guid
     SUM(d.area_total_construida_privada)::numeric AS area_privada_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  GROUP BY d.predio_guid
 )
 SELECT
   '709'::text                          AS regla,
@@ -2093,7 +2109,7 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph    ph ON ph.id_operacion_matriz = m.id_operacion
+LEFT JOIN datos_ph    ph ON ph.id_operacion_matriz = m.globalid  -- Cambio: enlace por predio_guid
 LEFT JOIN areas_priv_uc ap ON ap.matriz_gid = m.globalid
 WHERE
       ph.area_privada_reportada IS NULL
@@ -2103,9 +2119,9 @@ ORDER BY m.id_operacion, m.npn_matriz;
 
 --710
 
-DROP TABLE IF EXISTS reglas.regla_710;
+DROP TABLE IF EXISTS reglas_preprod.regla_710;
 
-CREATE TABLE reglas.regla_710 AS
+CREATE TABLE reglas_preprod.regla_710 AS
 WITH params AS (
   SELECT 0.01::numeric AS tol
 ),
@@ -2134,10 +2150,12 @@ uc_matriz AS (  -- Σ área_construccion de UC ligadas al MATRIZ
 ),
 datos_ph AS (  -- Área total construida COMÚN reportada
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    p.id_operacion AS id_operacion_matriz,  -- Se obtiene el id_operacion desde ILC_Predio
     SUM(d.area_total_construida_comun)::numeric AS area_comun_reportada
   FROM preprod.t_cr_datosphcondominio d
-  GROUP BY d.id_operacion_predio
+  JOIN preprod.t_ilc_predio p  -- Relacionando con ILC_Predio
+    ON d.predio_guid = p.globalid  -- Se enlaza predio_guid con globalid
+  GROUP BY p.id_operacion
 )
 SELECT
   '710'::text                      AS regla,
@@ -2164,11 +2182,12 @@ ORDER BY m.id_operacion, m.npn_matriz;
 
 
 
+
 --711
 
-DROP TABLE IF EXISTS reglas.regla_711;
+DROP TABLE IF EXISTS reglas_preprod.regla_711;
 
-CREATE TABLE reglas.regla_711 AS
+CREATE TABLE reglas_preprod.regla_711 AS
 WITH matrices AS (  -- Predios Condominio_Matriz
   SELECT
     p.objectid,
@@ -2183,7 +2202,7 @@ WITH matrices AS (  -- Predios Condominio_Matriz
 ),
 datos_ph AS (  -- Numero_Torres reportado
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS predio_guid,  -- Usamos predio_guid para enlazar
     d.numero_torres::int  AS num_torres_reportado
   FROM preprod.t_cr_datosphcondominio d
 )
@@ -2201,7 +2220,7 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph ph ON ph.id_operacion_matriz = m.id_operacion
+LEFT JOIN datos_ph ph ON ph.predio_guid = m.globalid  -- Relacionamos con predio_guid
 WHERE COALESCE(ph.num_torres_reportado,-1) <> 0
 ORDER BY m.id_operacion, m.npn_matriz;
 
@@ -2240,7 +2259,7 @@ conteo_asociados AS (  -- Conteo de predios asociados al condominio
 ),
 datos_ph AS (  -- total_unidades_privadas reportado
   SELECT
-    d.id_operacion_predio AS id_operacion_matriz,
+    d.predio_guid AS predio_guid,  -- Usamos predio_guid para enlazar
     d.total_unidades_privadas::int AS total_privadas_reportado
   FROM preprod.t_cr_datosphcondominio d
 )
@@ -2259,13 +2278,14 @@ SELECT
   NOW() AS created_at,
   NOW() AS updated_at
 FROM matrices m
-LEFT JOIN datos_ph       ph ON ph.id_operacion_matriz = m.id_operacion
+LEFT JOIN datos_ph       ph ON ph.predio_guid = m.globalid  -- Relacionamos con predio_guid
 LEFT JOIN conteo_asociados cu ON cu.matriz_gid = m.globalid
 WHERE
       ph.total_privadas_reportado IS NULL
    OR cu.unidades_asociadas IS NULL
    OR ph.total_privadas_reportado <> cu.unidades_asociadas
 ORDER BY m.id_operacion, m.npn_matriz;
+
 
 
 -- Regla 713
@@ -2284,7 +2304,7 @@ WITH dir_agregada AS (
         ELSE 0
       END
     ) AS n_principal
-  FROM preprod.extdireccion e
+  FROM preprod.t_extdireccion e
   GROUP BY 1
 ),
 pred AS (
@@ -2298,7 +2318,7 @@ pred AS (
 SELECT
   '713'::text                   AS regla,
   't_ilc_Predio'::text            AS objeto,
-  'preprod.extdireccion'::text  AS tabla,
+  'preprod.t_extdireccion'::text  AS tabla,
   pr.objectid,
   pr.globalid,
   d.id_operacion,
@@ -2318,7 +2338,11 @@ LEFT JOIN pred pr ON pr.id_operacion = d.id_operacion
 WHERE d.n_direcciones > 1         -- solo aplica si tiene más de una dirección
   AND d.n_principal <> 1          -- exactamente una debe ser principal
 ORDER BY d.id_operacion;
+
+
 ---714
+
+
 DROP TABLE IF EXISTS reglas.regla_714;
 
 CREATE TABLE reglas.regla_714 AS
@@ -2694,7 +2718,7 @@ WITH base AS (
     e.valor_via_generadora,
     e.numero_predio,
     e.nombre_predio
-  FROM preprod.extdireccion e
+  FROM preprod.t_extdireccion e
 ),
 pred AS (
   SELECT
@@ -2732,7 +2756,7 @@ viol AS (
 SELECT
   '707'::text                     AS regla,
   'EXTDireccion'::text            AS objeto,
-  'preprod.extdireccion'::text    AS tabla,
+  'preprod.t_extdireccion'::text    AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -2771,7 +2795,7 @@ WITH base AS (
     e.valor_via_generadora,
     e.numero_predio,
     e.nombre_predio
-  FROM preprod.extdireccion e
+  FROM preprod.t_extdireccion e
 ),
 pred AS (
   SELECT
@@ -2808,7 +2832,7 @@ viol AS (
 SELECT
   '708'::text                     AS regla,
   'EXTDireccion'::text            AS objeto,
-  'preprod.extdireccion'::text    AS tabla,
+  'preprod.t_extdireccion'::text    AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -2840,7 +2864,7 @@ WITH base AS (
     btrim(e.id_operacion_predio)     AS id_operacion,
     e.nombre_predio,
     length(e.nombre_predio)          AS longitud
-  FROM preprod.extdireccion e
+  FROM preprod.t_extdireccion e
   WHERE e.nombre_predio IS NOT NULL AND btrim(e.nombre_predio) <> ''
 ),
 viol AS (
@@ -2854,7 +2878,7 @@ viol AS (
 SELECT
   '716'::text                     AS regla,
   'EXTDireccion'::text            AS objeto,
-  'preprod.extdireccion'::text    AS tabla,
+  'preprod.t_extdireccion'::text    AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -2889,7 +2913,7 @@ dir_agg AS (
     COUNT(*)                     AS n_dir,
     SUM( CASE WHEN lower(btrim(e.tipo_direccion)) IN ('estructurada','estructurada ') THEN 1 ELSE 0 END ) AS n_estructurada,
     SUM( CASE WHEN lower(btrim(e.tipo_direccion)) IN ('no_estructurada','no estructurada','no-estructurada') THEN 1 ELSE 0 END ) AS n_no_estructurada
-  FROM preprod.extdireccion e
+  FROM preprod.t_extdireccion e
   GROUP BY 1
 ),
 excepciones AS (
@@ -2939,7 +2963,7 @@ viol AS (
 SELECT
   '717'::text                 AS regla,
   'EXTDireccion'::text        AS objeto,
-  'preprod.extdireccion'::text AS tabla,
+  'preprod.t_extdireccion'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
@@ -3069,7 +3093,7 @@ dir_token AS (
     unnest(
       regexp_split_to_array(upper(COALESCE(e.complemento,'')), '[^A-Z0-9]+')
     ) AS tok
-  FROM preprod.extdireccion e
+  FROM preprod.t_extdireccion e
 ),
 -- Filtramos solo tokens no vacíos
 dir_norm AS (
@@ -3109,7 +3133,7 @@ eval AS (
 SELECT
   '725'::text                      AS regla,
   'EXTDireccion'::text             AS objeto,
-  'preprod.extdireccion'::text     AS tabla,
+  'preprod.t_extdireccion'::text     AS tabla,
   e.objectid,
   e.globalid,
   e.id_operacion,
