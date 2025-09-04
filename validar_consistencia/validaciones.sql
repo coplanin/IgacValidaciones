@@ -2458,8 +2458,6 @@ WHERE
 ORDER BY f.id_operacion, f.objectid;
 
 --718
-
-
 DROP TABLE IF EXISTS reglas.regla_718;
 
 CREATE TABLE reglas.regla_718 AS
@@ -2467,11 +2465,12 @@ WITH base AS (
   SELECT
     d.objectid,
     d.globalid,
-    d.id_operacion_predio                         AS id_operacion,
-    TRIM(d.tipo_direccion::text)                  AS tipo_direccion,
+    p.id_operacion AS id_operacion,  -- Usamos id_operacion de ILC_Predio asociado a globalid
+    TRIM(d.tipo_direccion::text) AS tipo_direccion,
     NULLIF(TRIM(d.letra_via_principal::text), '') AS letra_vp,
-    NULLIF(TRIM(d.letra_via_generadora::text), '')AS letra_vg
+    NULLIF(TRIM(d.letra_via_generadora::text), '') AS letra_vg
   FROM preprod.t_extdireccion d
+  JOIN preprod.t_ilc_predio p ON p.globalid = d.predio_guid  -- Enlace con ILC_Predio por globalid
   WHERE TRIM(d.tipo_direccion::text) = 'Estructurada'
 ),
 flags AS (
@@ -2483,16 +2482,16 @@ flags AS (
   FROM base b
 )
 SELECT
-  '718'::text                 AS regla,
-  'ExtDireccion'::text        AS tabla,
-  'Letras_Via_Alfabeticas'    AS objeto,
+  '718'::text AS regla,
+  'ExtDireccion'::text AS tabla,
+  'Letras_Via_Alfabeticas' AS objeto,
   f.objectid,
   f.globalid,
-  f.id_operacion,
-  NULL::text                  AS npn,
+  f.id_operacion,  -- Aquí usamos id_operacion obtenido del JOIN con ILC_Predio
+  NULL::text AS npn,
   CONCAT_WS('; ',
-    CASE WHEN letra_vp_no_alfabetica THEN 'Letra_Via_Principal inválida: '||f.letra_vp END,
-    CASE WHEN letra_vg_no_alfabetica THEN 'Letra_Via_Generadora inválida: '||f.letra_vg END
+    CASE WHEN letra_vp_no_alfabetica THEN 'Letra_Via_Principal inválida: ' || f.letra_vp END,
+    CASE WHEN letra_vg_no_alfabetica THEN 'Letra_Via_Generadora inválida: ' || f.letra_vg END
   ) AS valor,
   'INCUMPLE: En dirección estructurada, Letra_Via_Principal y/o Letra_Via_Generadora deben ser alfabéticas.' AS descripcion,
   FALSE AS cumple,
@@ -2506,27 +2505,34 @@ ORDER BY f.id_operacion, f.objectid;
 DROP TABLE IF EXISTS reglas.regla_719;
 
 CREATE TABLE reglas.regla_719 AS
+WITH branch_info AS (
+  SELECT
+    p.globalid,
+    p.id_operacion,  -- No necesitamos btrim() para id_operacion
+    p.gdb_branch_id  -- Usamos gdb_branch_id directamente
+  FROM preprod.t_ilc_predio p
+)
 SELECT
   '719'::text                                              AS regla,
   'ILC_DatosAdicionalesLevantamientoCatastral'             AS tabla,
   'Observaciones'                                          AS objeto,
   d.objectid,
   d.globalid,
-  btrim(d.id_operacion_predio)                             AS id_operacion,
+  bi.id_operacion                                          AS id_operacion,  -- Usamos predio_guid para enlazar id_operacion
   NULL::text                                               AS npn,
   char_length(d.observaciones)                             AS valor,
-  'INCUMPLE: Observaciones supera los 254 caracteres ('||
-      char_length(d.observaciones)||')'                    AS descripcion,
+  'INCUMPLE: Observaciones supera los 254 caracteres ('|| char_length(d.observaciones) ||')' AS descripcion,
   FALSE                                                    AS cumple,
   NOW() AS created_at,
   NOW() AS updated_at
 FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+JOIN preprod.t_ilc_predio p ON p.globalid = d.predio_guid  -- Haciendo el join con ILC_Predio usando predio_guid
+JOIN branch_info bi ON bi.globalid = p.globalid            -- Enlace con gdb_branch_id
 WHERE d.observaciones IS NOT NULL
   AND char_length(d.observaciones) > 254
-ORDER BY id_operacion, d.objectid;  
+ORDER BY bi.id_operacion, d.objectid;
 
 --720
-
 DROP TABLE IF EXISTS reglas.regla_720;
 
 CREATE TABLE reglas.regla_720 AS
@@ -2534,11 +2540,12 @@ WITH base AS (
   SELECT
     d.objectid,
     d.globalid,
-    d.id_operacion_predio                                           AS id_operacion,
+    p.id_operacion                                           AS id_operacion,  -- Usamos id_operacion de la tabla ILC_Predio
     NULLIF(TRIM(d.nombres_apellidos_quien_atendio::text), '')       AS nombre_atendio,
     NULLIF(TRIM(d.num_doc_quien_atendio::text), '')                 AS num_doc_atendio,
     NULLIF(TRIM(d.tipo_doc_quien_atendio::text), '')                AS tipo_doc_atendio
   FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  JOIN preprod.t_ilc_predio p ON p.globalid = d.predio_guid  -- Join con predio_guid para obtener id_operacion
 ),
 con_info AS (   -- Registros donde existe información de la persona (nombre o número)
   SELECT *
@@ -2562,7 +2569,9 @@ FROM con_info c
 WHERE LOWER(c.tipo_doc_atendio) IN ('nit', 'secuencial')
 ORDER BY c.id_operacion, c.objectid;
 
+
 --722
+- 722
 DROP TABLE IF EXISTS reglas.regla_722;
 
 CREATE TABLE reglas.regla_722 AS
@@ -2570,40 +2579,42 @@ WITH base AS (
   SELECT
     d.objectid,
     d.globalid,
-    d.id_operacion_predio                                AS id_operacion,
+    d.id_operacion_predio AS id_operacion,
+    d.predio_guid,  -- Aquí agregamos predio_guid
     NULLIF(TRIM(d.nombres_apellidos_quien_atendio::text), '') AS nombre_atendio,
     NULLIF(TRIM(d.tipo_doc_quien_atendio::text), '')          AS tipo_doc_atendio,
     NULLIF(TRIM(d.num_doc_quien_atendio::text), '')           AS num_doc_atendio,
     NULLIF(TRIM(d.correo_electronico::text), '')              AS correo
   FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
 ),
-con_info AS (  -- hay información de la persona y hay correo diligenciado
+con_info AS (  -- Filtramos por información válida de la persona y correo
   SELECT *
   FROM base
   WHERE (nombre_atendio IS NOT NULL OR tipo_doc_atendio IS NOT NULL OR num_doc_atendio IS NOT NULL)
     AND correo IS NOT NULL
 )
 SELECT
-  '722'::text                                   AS regla,
-  'ILC_DatosAdicionalesLevantamientoCatastral'  AS tabla,
-  'Correo_Electronico'                          AS objeto,
+  '722'::text AS regla,
+  'ILC_DatosAdicionalesLevantamientoCatastral' AS tabla,
+  'Correo_Electronico' AS objeto,
   c.objectid,
   c.globalid,
   c.id_operacion,
-  NULL::text                                    AS npn,
-  c.correo                                      AS valor,
+  c.predio_guid,  -- Incluir predio_guid en el SELECT
+  NULL::text AS npn,
+  c.correo AS valor,
   'INCUMPLE: correo no cumple estructura usuario@dominio.' AS descripcion,
   FALSE AS cumple,
   NOW() AS created_at,
   NOW() AS updated_at
 FROM con_info c
--- patrón común para correo: usuario@dominio.tld (mínimo 2 letras en TLD)
+-- Filtramos por correo que no cumple con el patrón
 WHERE c.correo !~ '^[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}$'
 ORDER BY c.id_operacion, c.objectid;
 
 
---723
-
+-- 723
+-- Regla de validación
 DROP TABLE IF EXISTS reglas.regla_723;
 
 CREATE TABLE reglas.regla_723 AS
@@ -2611,45 +2622,42 @@ WITH base AS (
   SELECT
     d.objectid,
     d.globalid,
-    d.id_operacion_predio                                        AS id_operacion,
-
-    -- existe persona: solo miramos el nombre (como pediste)
-    NULLIF(TRIM(d.nombres_apellidos_quien_atendio::text), '')    AS nombre_atendio,
-
-    -- contacto
-    NULLIF(TRIM(d.celular::text), '')                            AS celular,
-    NULLIF(TRIM(d.correo_electronico::text), '')                 AS correo,
-
-    -- NORMALIZACIÓN: derivar booleano desde texto (sin usar IS TRUE)
+    d.id_operacion_predio AS id_operacion,
+    d.predio_guid,   -- Incluimos predio_guid
+    NULLIF(TRIM(d.nombres_apellidos_quien_atendio::text), '') AS nombre_atendio,
+    NULLIF(TRIM(d.celular::text), '') AS celular,
+    NULLIF(TRIM(d.correo_electronico::text), '') AS correo,
     CASE
-      WHEN LOWER(TRIM(d.autoriza_notificaciones::text)) IN ('t','true','1','si','sí','s','y','yes')
+      WHEN LOWER(TRIM(d.autoriza_notificaciones::text)) IN ('t', 'true', '1', 'si', 'sí', 's', 'y', 'yes')
         THEN TRUE
       ELSE FALSE
     END AS autoriza
-  FROM preprod.t_ilc_datosadicionaleslevantamientocatastral d
+  FROM prod.t_ilc_datosadicionaleslevantamientocatastral d
 ),
-con_nombre AS (  -- sólo registros con nombre diligenciado
-  SELECT * FROM base WHERE nombre_atendio IS NOT NULL
+con_nombre_y_autoriza AS (
+  SELECT *
+  FROM base
+  WHERE nombre_atendio IS NOT NULL  -- Solo registros con nombre diligenciado
+    AND autoriza = TRUE             -- Y donde autoriza notificaciones es verdadero
 )
 SELECT
-  '723'::text                                        AS regla,
-  'ILC_DatosAdicionalesLevantamientoCatastral'       AS tabla,
-  'Contacto_Notificaciones'                          AS objeto,
+  '723'::text AS regla,
+  'ILC_DatosAdicionalesLevantamientoCatastral' AS tabla,
+  'Celular_Correo' AS objeto,
   c.objectid,
   c.globalid,
   c.id_operacion,
-  NULL::text                                         AS npn,
-  'autoriza='||c.autoriza||', correo='||COALESCE(c.correo,'<NULL>')
-    ||', celular='||COALESCE(c.celular,'<NULL>')     AS valor,
-  'INCUMPLE: Con nombre de quien atendió y autoriza notificaciones = TRUE, debe existir celular y/o correo electrónico.' AS descripcion,
+  c.predio_guid,  -- Incluimos predio_guid
+  NULL::text AS npn,
+  'celular=' || COALESCE(c.celular, '<NULL>') || ', correo=' || COALESCE(c.correo, '<NULL>') AS valor,
+  'INCUMPLE: Si existe información de quien atendió la visita y autoriza notificaciones, entonces celular y/o correo deben estar diligenciados.' AS descripcion,
   FALSE AS cumple,
   NOW() AS created_at,
   NOW() AS updated_at
-FROM con_nombre c
-WHERE c.autoriza = TRUE
-  AND c.correo  IS NULL
-  AND c.celular IS NULL
+FROM con_nombre_y_autoriza c
+WHERE c.celular IS NULL AND c.correo IS NULL  -- Verificamos que ambos campos estén vacíos
 ORDER BY c.id_operacion, c.objectid;
+
 
 
 --724
@@ -2980,6 +2988,7 @@ ORDER BY v.id_operacion, v.npn;
 
 -- Regla 676: Campos 22-30 del NPN en predios PH_Matriz deben ser "900000000"
 
+
 DROP TABLE IF EXISTS reglas.regla_676;
 
 CREATE TABLE reglas.regla_676 AS
@@ -2987,8 +2996,8 @@ WITH base AS (
   SELECT
     p.objectid,
     p.globalid,
-    btrim(p.id_operacion)          AS id_operacion,
-    p.numero_predial_nacional      AS npn,
+    p.id_operacion AS id_operacion,  -- Usamos id_operacion de la tabla ILC_Predio
+    p.numero_predial_nacional AS npn,
     lower(btrim(p.condicion_predio)) AS condicion_predio,
     substring(p.numero_predial_nacional FROM 22 FOR 9) AS npn_22_30
   FROM preprod.t_ilc_predio p
@@ -3070,93 +3079,43 @@ ORDER BY m.id_operacion, m.objectid;
 
 -- Regla 725 
 
+-- Regla de validación con filtro de gdb_branch_id
 DROP TABLE IF EXISTS reglas.regla_725;
 
 CREATE TABLE reglas.regla_725 AS
-WITH unidades AS (
+WITH base AS (
   SELECT
     p.objectid,
     p.globalid,
-    btrim(p.id_operacion)             AS id_operacion,
-    p.numero_predial_nacional         AS npn,
-    lower(btrim(p.condicion_predio))  AS cp
-  FROM preprod.t_ilc_predio p
-  WHERE lower(btrim(p.condicion_predio)) IN (
-    'ph.unidad_predial','ph_unidad_predial',
-    'condominio.unidad_predial','condominio_unidad_predial'
-  )
-),
-dir_token AS (
-  SELECT
-    e.id_operacion_predio             AS id_operacion,
-    e.objectid                        AS dir_oid,
-    unnest(
-      regexp_split_to_array(upper(COALESCE(e.complemento,'')), '[^A-Z0-9]+')
-    ) AS tok
-  FROM preprod.t_extdireccion e
-),
--- Filtramos solo tokens no vacíos
-dir_norm AS (
-  SELECT
-    id_operacion,
-    dir_oid,
-    tok
-  FROM dir_token
-  WHERE tok <> ''
-),
--- Evaluamos por predio
-dir_eval AS (
-  SELECT
-    id_operacion,
-    COUNT(DISTINCT dir_oid) AS n_dir,
-    BOOL_OR(tok = ANY(ARRAY[
-      'AP','BQ','BD','CS','ED','ET','GA','IN','L','LO','MZ','OF','PQ','PN','TO','UN','UR'
-    ])) AS tiene_codigo,
-    ARRAY_AGG(DISTINCT tok) FILTER (
-      WHERE tok = ANY(ARRAY[
-        'AP','BQ','BD','CS','ED','ET','GA','IN','L','LO','MZ','OF','PQ','PN','TO','UN','UR'
-      ])
-    ) AS codigos_encontrados
-  FROM dir_norm
-  GROUP BY id_operacion
-),
-eval AS (
-  SELECT
-    u.objectid, u.globalid, u.id_operacion, u.npn, u.cp,
-    COALESCE(de.n_dir, 0)                           AS n_dir,
-    COALESCE(de.tiene_codigo, FALSE)                AS tiene_codigo,
-    COALESCE(de.codigos_encontrados, ARRAY[]::text[]) AS codigos_encontrados
-  FROM unidades u
-  LEFT JOIN dir_eval de ON de.id_operacion = u.id_operacion
+    p.condicion_predio,  -- Condición del predio
+    e.complemento,       -- Complemento de la dirección
+    p.id_operacion,
+    e.gdb_branch_id      -- Incluimos gdb_branch_id en la selección
+  FROM
+    preprod.t_ilc_predio p
+  JOIN preprod.t_extdireccion e ON p.globalid = e.predio_guid  -- Relacionamos con t_extdireccion usando globalid
 )
--- Solo incumplimientos
 SELECT
-  '725'::text                      AS regla,
-  'EXTDireccion'::text             AS objeto,
-  'preprod.t_extdireccion'::text     AS tabla,
-  e.objectid,
-  e.globalid,
-  e.id_operacion,
-  e.npn,
-  CASE
-    WHEN e.n_dir = 0 THEN
-      'INCUMPLE: unidad sin direcciones asociadas (se requiere al menos una con código de complemento)'
-    WHEN e.tiene_codigo = FALSE THEN
-      'INCUMPLE: ninguna dirección asociada contiene código de complemento permitido (AP,BQ,BD,CS,ED,ET,GA,IN,L,LO,MZ,OF,PQ,PN,TO,UN,UR)'
-  END AS descripcion,
-  (
-    'n_dir='||e.n_dir||', codigos_encontrados='||
-    CASE
-      WHEN array_length(e.codigos_encontrados,1) IS NULL THEN '(ninguno)'
-      ELSE array_to_string(e.codigos_encontrados, '|')
-    END
-  )::text                          AS valor,
-  FALSE                            AS cumple,
-  NOW()                            AS created_at,
-  NOW()                            AS updated_at
-FROM eval e
-WHERE e.n_dir = 0 OR e.tiene_codigo = FALSE
-ORDER BY e.id_operacion, e.objectid;
+  '725'::text AS regla,
+  'ILC_Predio' AS tabla,
+  'ExtDireccion_Complemento' AS objeto,
+  b.objectid,
+  b.globalid,
+  b.id_operacion,
+  NULL::text AS npn,
+  b.complemento AS valor,
+  'INCUMPLE: Si Condicion_Predio es PH.Unidad_Predial o Condominio.Unidad_Predial, Complemento debe contener valores válidos.' AS descripcion,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM
+  base b
+WHERE
+  (b.condicion_predio IN ('PH.Unidad_Predial', 'Condominio.Unidad_Predial')  -- Verificamos la condición del predio
+   AND b.complemento NOT IN ('AP', 'BQ', 'BD', 'CS', 'ED', 'ET', 'GA', 'IN', 'LO', 'MZ', 'OF', 'PQ', 'PN', 'TO', 'UN', 'UR', 'TO', 'AP'))  -- Verificamos si el complemento tiene los valores válidos
+  AND b.gdb_branch_id = 0  -- Filtro por gdb_branch_id igual a 0
+ORDER BY b.id_operacion, b.objectid;
+
 
 --726
 DROP TABLE IF EXISTS reglas.regla_726;
@@ -3166,115 +3125,95 @@ WITH informales AS (  -- predios informales
   SELECT
     p.objectid,
     p.globalid,
-    btrim(p.id_operacion)      AS id_operacion,
-    p.numero_predial_nacional  AS npn_inf
-  FROM preprod.t_ilc_predio p
+    btrim(p.id_operacion) AS id_operacion,
+    p.numero_predial_nacional AS npn_inf
+  FROM prod.t_ilc_predio p
   WHERE p.numero_predial_nacional IS NOT NULL
     AND char_length(p.numero_predial_nacional) >= 22
-    AND substring(p.numero_predial_nacional FROM 22 FOR 1) = '2'
+    AND substring(p.numero_predial_nacional FROM 22 FOR 1) = '2'  -- Verificamos que el dígito 22 sea '2'
 ),
 links AS (  -- vínculos informal-formal
   SELECT
     pi.id_operacion_predio_informal AS id_op_informal,
     array_agg(DISTINCT pf.numero_predial_nacional) AS npn_formales,
     bool_or(substring(pf.numero_predial_nacional FROM 22 FOR 1) <> '2') AS tiene_formal_valido
-  FROM preprod.t_ilc_predio_informalidad pi
-  JOIN preprod.t_ilc_predio pf
-    ON btrim(pf.id_operacion) = btrim(pi.id_operacion_predio_formal)
+  FROM prod.t_ilc_predio_informalidad pi
+  JOIN prod.t_ilc_predio pf
+    ON pi.predio_formal_guid = pf.globalid  -- Relacionamos por predio_formal_guid y globalid
   GROUP BY pi.id_operacion_predio_informal
 )
 SELECT
-  '726'::text                        AS regla,
-  'ILC_Predio_Informalidad'::text    AS tabla,
-  'Relacion_Informal_Formal'::text   AS objeto,
+  '726'::text AS regla,
+  'ILC_Predio_Informalidad'::text AS tabla,
+  'Relacion_Informal_Formal'::text AS objeto,
   inf.objectid,
   inf.globalid,
   inf.id_operacion,
-  inf.npn_inf                        AS npn,
-  'formales_vinculados='||COALESCE(array_to_string(l.npn_formales, ', '), '<NINGUNO>') AS valor,
+  inf.npn_inf AS npn,
+  'formales_vinculados=' || COALESCE(array_to_string(l.npn_formales, ', '), '<NINGUNO>') AS valor,
   'INCUMPLE: Predio informal (NPN[22]=2) sin vínculo válido a un predio formal (NPN[22]<>2).' AS descripcion,
   FALSE AS cumple,
-  NOW()  AS created_at,
-  NOW()  AS updated_at
+  NOW() AS created_at,
+  NOW() AS updated_at
 FROM informales inf
 LEFT JOIN links l ON l.id_op_informal = inf.id_operacion
-WHERE l.id_op_informal IS NULL          -- no tiene relación
-   OR l.tiene_formal_valido IS NOT TRUE -- tiene relaciones pero ninguna a predio formal válido
+WHERE l.id_op_informal IS NULL          -- No tiene relación
+   OR l.tiene_formal_valido IS NOT TRUE -- Tiene relaciones pero ninguna a predio formal válido
 ORDER BY inf.id_operacion, inf.npn_inf;
 
 
 
----727
 
+---727
 DROP TABLE IF EXISTS reglas.regla_727;
 
 CREATE TABLE reglas.regla_727 AS
-WITH ref AS (
+WITH informales AS (  -- predios informales
   SELECT
-    pi.objectid,
-    pi.globalid,
-    btrim(pi.id_operacion_predio_informal) AS idop_informal,
-    btrim(pi.id_operacion_predio_formal)   AS idop_formal,
-    -- predio informal (referenciado)
-    i.globalid    AS gid_inf,
-    i.numero_predial_nacional AS npn_inf,
-    CASE
-      WHEN i.numero_predial_nacional IS NULL THEN NULL
-      WHEN char_length(i.numero_predial_nacional) < 22 THEN NULL
-      ELSE substring(i.numero_predial_nacional FROM 22 FOR 1)
-    END AS d22_inf,
-    -- predio formal (referenciado)
-    f.globalid    AS gid_for,
-    f.numero_predial_nacional AS npn_for,
-    CASE
-      WHEN f.numero_predial_nacional IS NULL THEN NULL
-      WHEN char_length(f.numero_predial_nacional) < 22 THEN NULL
-      ELSE substring(f.numero_predial_nacional FROM 22 FOR 1)
-    END AS d22_for
-  FROM preprod.t_ilc_predio_informalidad pi
-  LEFT JOIN preprod.t_ilc_predio i
-         ON btrim(i.id_operacion) = btrim(pi.id_operacion_predio_informal)
-  LEFT JOIN preprod.t_ilc_predio f
-         ON btrim(f.id_operacion) = btrim(pi.id_operacion_predio_formal)
+    p.objectid,  -- Usamos objectid para el predio informal
+    p.globalid,
+    btrim(p.id_operacion) AS id_operacion,
+    p.numero_predial_nacional AS npn_inf
+  FROM preprod.t_ilc_predio p
+  WHERE p.numero_predial_nacional IS NOT NULL
+    AND char_length(p.numero_predial_nacional) >= 22
+    AND substring(p.numero_predial_nacional FROM 22 FOR 1) = '2'  -- Verificamos que el dígito 22 sea '2' (informal)
 ),
-flags AS (
+links AS (  -- vínculos informal-formal
   SELECT
-    r.*,
-    (r.gid_inf IS NULL)                 AS falta_predio_informal,
-    (r.gid_for IS NULL)                 AS falta_predio_formal,
-    (r.gid_inf IS NOT NULL AND r.d22_inf IS DISTINCT FROM '2')  AS informal_no_es_informal, -- NPN[22] ≠ '2'
-    (r.gid_for IS NOT NULL AND (r.d22_for IS NULL OR r.d22_for = '2')) AS formal_no_es_formal -- NPN[22] = '2'
-  FROM ref r
+    pi.objectid AS predio_informal_guid,  -- Usamos objectid para el predio informal
+    array_agg(DISTINCT pf.numero_predial_nacional) AS npn_formales,
+    bool_or(substring(pf.numero_predial_nacional FROM 22 FOR 1) <> '2') AS tiene_formal_valido  -- Verificamos que el dígito 22 no sea '2' (formal)
+  FROM preprod.t_ilc_predio_informalidad pi
+  JOIN preprod.t_ilc_predio pf
+    ON pi.predio_formal_guid = pf.globalid  -- Relacionamos por predio_formal_guid y globalid
+  WHERE substring(pf.numero_predial_nacional FROM 22 FOR 1) <> '2'  -- Solo predios formales (NPN[22] debe ser diferente de '2')
+  GROUP BY pi.objectid  -- Relacionamos por objectid de predio informal
 )
 SELECT
-  '727'::text                        AS regla,
-  'ILC_Predio_Informalidad'::text    AS tabla,
-  'Consistencia_Formal_Informal'::text AS objeto,
-  f.objectid,
-  f.globalid,
-  COALESCE(f.idop_informal,'<NULL>') AS id_operacion_informal,
-  COALESCE(f.idop_formal,'<NULL>')   AS id_operacion_formal,
-  ('npn_informal='||COALESCE(f.npn_inf,'<NULL>')
-   ||', npn_formal='||COALESCE(f.npn_for,'<NULL>')) AS valor,
-  CASE
-    WHEN f.falta_predio_informal THEN 'INCUMPLE: id_operacion_predio_informal no referencia un predio existente.'
-    WHEN f.falta_predio_formal   THEN 'INCUMPLE: id_operacion_predio_formal no referencia un predio existente.'
-    WHEN f.informal_no_es_informal THEN 'INCUMPLE: el predio en id_operacion_predio_informal no es informal (NPN[22] debe ser ''2'').'
-    WHEN f.formal_no_es_formal     THEN 'INCUMPLE: el predio en id_operacion_predio_formal no es formal (NPN[22] debe ser distinto de ''2'').'
-  END AS descripcion,
+  '727'::text AS regla,
+  'ILC_Predio_Informalidad'::text AS tabla,
+  'Relacion_Informal_Formal'::text AS objeto,
+  inf.objectid,
+  inf.globalid,
+  inf.id_operacion,
+  inf.npn_inf AS npn,
+  'formales_vinculados=' || COALESCE(array_to_string(l.npn_formales, ', '), '<NINGUNO>') AS valor,
+  'INCUMPLE: Predio informal (NPN[22]=2) sin vínculo válido a un predio formal (NPN[22]<>2).' AS descripcion,
   FALSE AS cumple,
-  NOW()  AS created_at,
-  NOW()  AS updated_at
-FROM flags f
-WHERE f.falta_predio_informal
-   OR f.falta_predio_formal
-   OR f.informal_no_es_informal
-   OR f.formal_no_es_formal
-ORDER BY f.idop_informal, f.idop_formal, f.objectid;
+  NOW() AS created_at,
+  NOW() AS updated_at
+FROM informales inf
+LEFT JOIN links l ON l.predio_informal_guid = inf.objectid  -- Relacionamos por objectid del predio informal
+WHERE l.predio_informal_guid IS NULL          -- No tiene relación
+   OR l.tiene_formal_valido IS NOT TRUE -- Tiene relaciones pero ninguna a predio formal válido
+ORDER BY inf.id_operacion, inf.npn_inf;
+
 
 
 -- Regla 677
 
+-- Regla 677
 DROP TABLE IF EXISTS reglas.regla_677;
 
 CREATE TABLE reglas.regla_677 AS
@@ -3300,10 +3239,10 @@ viol AS (
   SELECT
     b.*,
     -- Chequeos de regla
-    (b.ok_formato AND b.s22     = '9')       AS ok_22,
-    (b.ok_formato AND b.s23_24 <> '00')      AS ok_23_24,
-    (b.ok_formato AND b.s25_26 <> '00')      AS ok_25_26,
-    (b.ok_formato AND b.s27_30 <> '0000')    AS ok_27_30,
+    (b.ok_formato AND b.s22 = '9')       AS ok_22,
+    (b.ok_formato AND b.s23_24 <> '00')  AS ok_23_24,
+    (b.ok_formato AND b.s25_26 <> '00')  AS ok_25_26,
+    (b.ok_formato AND b.s27_30 <> '0000') AS ok_27_30,
     -- Motivo detallado (concatena todas las fallas)
     trim(both ', ' FROM concat_ws(', ',
       CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
@@ -3315,23 +3254,23 @@ viol AS (
   FROM base b
 )
 SELECT
-  '677'::text                    AS regla,
-  't_ilc_Predio'::text             AS objeto,
-  'preprod.t_ilc_predio'::text     AS tabla,
+  '677'::text AS regla,
+  't_ilc_Predio'::text AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
   v.npn,
-  ('INCUMPLE: PH_Unidad_Predial → '||v.motivo)::text AS descripcion,
+  ('INCUMPLE: PH_Unidad_Predial → ' || v.motivo)::text AS descripcion,
   (
-    's22='||COALESCE(v.s22,'(null)')||
-    ', s23_24='||COALESCE(v.s23_24,'(null)')||
-    ', s25_26='||COALESCE(v.s25_26,'(null)')||
-    ', s27_30='||COALESCE(v.s27_30,'(null)')
-  )::text                         AS valor,
-  FALSE                           AS cumple,
-  NOW()                           AS created_at,
-  NOW()                           AS updated_at
+    's22=' || COALESCE(v.s22, '(null)') ||
+    ', s23_24=' || COALESCE(v.s23_24, '(null)') ||
+    ', s25_26=' || COALESCE(v.s25_26, '(null)') ||
+    ', s27_30=' || COALESCE(v.s27_30, '(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  NOW() AS created_at,
+  NOW() AS updated_at
 FROM viol v
 WHERE
      NOT v.ok_formato
@@ -3340,6 +3279,7 @@ WHERE
   OR NOT v.ok_25_26
   OR NOT v.ok_27_30
 ORDER BY v.id_operacion, v.npn;
+
 
 -- Regla 676
 
@@ -3397,9 +3337,8 @@ WHERE
   OR NOT v.ok_23_30
 ORDER BY v.id_operacion, v.npn;
 
--- Regla 678
-
-
+--678
+-- Regla 678 con branch (join correcto usando predio_guid para otras tablas)
 DROP TABLE IF EXISTS reglas.regla_678;
 
 CREATE TABLE reglas.regla_678 AS
@@ -3407,56 +3346,66 @@ WITH base AS (
   SELECT
     p.objectid,
     p.globalid,
-    btrim(p.id_operacion)                AS id_operacion,
-    p.numero_predial_nacional            AS npn,
-    lower(btrim(p.condicion_predio))     AS cp,
-    -- segmentos del NPN (1-indexado)
+    btrim(p.id_operacion) AS id_operacion,
+    p.numero_predial_nacional AS npn,
+    lower(btrim(p.condicion_predio)) AS cp,
     substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
     substring(p.numero_predial_nacional FROM 23 FOR 2) AS s23_24,
     substring(p.numero_predial_nacional FROM 25 FOR 2) AS s25_26,
     substring(p.numero_predial_nacional FROM 27 FOR 4) AS s27_30,
-    -- formato general (30 dígitos)
-    (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
+    (p.numero_predial_nacional ~ '^[0-9]{30}$') AS ok_formato
   FROM preprod.t_ilc_predio p
-  WHERE lower(btrim(p.condicion_predio)) IN
+  WHERE lower(btrim(p.condicion_predio)) IN 
     ('parque_cementerio.unidad_predial','parque_cementerio_unidad_predial')
+),
+branch AS (
+  -- Join con tabla relacionada usando predio_guid
+  SELECT
+    b.*,
+    d.nombres_apellidos_quien_atendio AS nombre_atendio,
+    d.tipo_doc_quien_atendio AS tipo_doc_atendio,
+    d.num_doc_quien_atendio AS num_doc_atendio
+  FROM base b
+  LEFT JOIN preprod.t_ilc_datosadicionaleslevantamientocatastral d
+    ON d.predio_guid = b.globalid  -- join correcto usando predio_guid
 ),
 viol AS (
   SELECT
-    b.*,
-    -- checks por regla
-    (b.ok_formato AND b.s22     = '7')       AS ok_22,
-    (b.ok_formato AND b.s23_24 <> '00')      AS ok_23_24,
-    (b.ok_formato AND b.s25_26 <> '00')      AS ok_25_26,
-    (b.ok_formato AND b.s27_30 <> '0000')    AS ok_27_30,
-    -- motivo detallado
+    br.*,
+    (br.ok_formato AND br.s22 = '7') AS ok_22,
+    (br.ok_formato AND br.s23_24 <> '00') AS ok_23_24,
+    (br.ok_formato AND br.s25_26 <> '00') AS ok_25_26,
+    (br.ok_formato AND br.s27_30 <> '0000') AS ok_27_30,
     trim(both ', ' FROM concat_ws(', ',
-      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
-      CASE WHEN b.ok_formato AND b.s22 <> '7'      THEN 'pos22≠7' END,
-      CASE WHEN b.ok_formato AND b.s23_24 = '00'   THEN 'pos23-24="00"' END,
-      CASE WHEN b.ok_formato AND b.s25_26 = '00'   THEN 'pos25-26="00"' END,
-      CASE WHEN b.ok_formato AND b.s27_30 = '0000' THEN 'pos27-30="0000"' END
+      CASE WHEN NOT br.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN br.ok_formato AND NOT (br.s22 = '7') THEN 'pos22≠7' END,
+      CASE WHEN br.ok_formato AND NOT (br.s23_24 <> '00') THEN 'pos23-24="00"' END,
+      CASE WHEN br.ok_formato AND NOT (br.s25_26 <> '00') THEN 'pos25-26="00"' END,
+      CASE WHEN br.ok_formato AND NOT (br.s27_30 <> '0000') THEN 'pos27-30="0000"' END
     )) AS motivo
-  FROM base b
+  FROM branch br
 )
 SELECT
-  '678'::text                    AS regla,
-  't_ilc_Predio'::text             AS objeto,
-  'preprod.t_ilc_predio'::text     AS tabla,
+  '678'::text AS regla,
+  't_ilc_Predio'::text AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
   v.npn,
-  ('INCUMPLE: Parque_Cementerio.Unidad_Predial → '||v.motivo)::text AS descripcion,
+  ('INCUMPLE: Parque_Cementerio.Unidad_Predial → ' || v.motivo)::text AS descripcion,
   (
-    's22='||COALESCE(v.s22,'(null)')||
-    ', s23_24='||COALESCE(v.s23_24,'(null)')||
-    ', s25_26='||COALESCE(v.s25_26,'(null)')||
-    ', s27_30='||COALESCE(v.s27_30,'(null)')
-  )::text                         AS valor,
-  FALSE                           AS cumple,
-  NOW()                           AS created_at,
-  NOW()                           AS updated_at
+    's22=' || COALESCE(v.s22,'(null)') ||
+    ', s23_24=' || COALESCE(v.s23_24,'(null)') ||
+    ', s25_26=' || COALESCE(v.s25_26,'(null)') ||
+    ', s27_30=' || COALESCE(v.s27_30,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  v.nombre_atendio,
+  v.tipo_doc_atendio,
+  v.num_doc_atendio,
+  NOW() AS created_at,
+  NOW() AS updated_at
 FROM viol v
 WHERE
      NOT v.ok_formato
@@ -3465,9 +3414,7 @@ WHERE
   OR NOT v.ok_25_26
   OR NOT v.ok_27_30
 ORDER BY v.id_operacion, v.npn;
-
--- Regla 679
-
+-- Regla 679 con branch (join seguro usando predio_guid)
 DROP TABLE IF EXISTS reglas.regla_679;
 
 CREATE TABLE reglas.regla_679 AS
@@ -3475,50 +3422,63 @@ WITH base AS (
   SELECT
     p.objectid,
     p.globalid,
-    btrim(p.id_operacion)                    AS id_operacion,
-    p.numero_predial_nacional                AS npn,
-    lower(btrim(p.condicion_predio))         AS cp,
+    btrim(p.id_operacion) AS id_operacion,
+    p.numero_predial_nacional AS npn,
+    lower(btrim(p.condicion_predio)) AS cp,
     substring(p.numero_predial_nacional FROM 22 FOR 9) AS s22_30,
     substring(p.numero_predial_nacional FROM 22 FOR 1) AS s22,
     substring(p.numero_predial_nacional FROM 23 FOR 8) AS s23_30,
-    (p.numero_predial_nacional ~ '^[0-9]{30}$')        AS ok_formato
+    (p.numero_predial_nacional ~ '^[0-9]{30}$') AS ok_formato
   FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('condominio.matriz','condominio_matriz','condominio matriz')
 ),
-viol AS (
+branch AS (
+  -- branch listo para joins futuros usando predio_guid
   SELECT
     b.*,
-    (b.ok_formato AND b.s22_30 = '800000000') AS ok_bloque,
-    trim(both ', ' FROM concat_ws(', ',
-      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
-      CASE WHEN b.ok_formato AND b.s22_30 <> '800000000' THEN 'pos22-30≠800000000' END
-    )) AS motivo
+    d.nombres_apellidos_quien_atendio AS nombre_atendio,
+    d.tipo_doc_quien_atendio AS tipo_doc_atendio,
+    d.num_doc_quien_atendio AS num_doc_atendio
   FROM base b
+  LEFT JOIN preprod.t_ilc_datosadicionaleslevantamientocatastral d
+    ON d.predio_guid = b.globalid
+),
+viol AS (
+  SELECT
+    br.*,
+    (br.ok_formato AND br.s22_30 = '800000000') AS ok_bloque,
+    trim(both ', ' FROM concat_ws(', ',
+      CASE WHEN NOT br.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN br.ok_formato AND br.s22_30 <> '800000000' THEN 'pos22-30≠800000000' END
+    )) AS motivo
+  FROM branch br
 )
 SELECT
-  '679'::text                    AS regla,
-  't_ilc_Predio'::text             AS objeto,
-  'preprod.t_ilc_predio'::text     AS tabla,
+  '679'::text AS regla,
+  't_ilc_Predio'::text AS objeto,
+  'preprod.t_ilc_predio'::text AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion,
+  v.id_operacion,  -- <-- mantener siempre de la tabla base
   v.npn,
-  ('INCUMPLE: Condominio.Matriz → '||v.motivo)::text AS descripcion,
+  ('INCUMPLE: Condominio.Matriz → ' || v.motivo)::text AS descripcion,
   (
-    's22='||COALESCE(v.s22,'(null)')||
-    ', s23_30='||COALESCE(v.s23_30,'(null)')||
-    ', s22_30='||COALESCE(v.s22_30,'(null)')
-  )::text                       AS valor,
-  FALSE                         AS cumple,
-  NOW()                         AS created_at,
-  NOW()                         AS updated_at
+    's22=' || COALESCE(v.s22,'(null)') ||
+    ', s23_30=' || COALESCE(v.s23_30,'(null)') ||
+    ', s22_30=' || COALESCE(v.s22_30,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  v.nombre_atendio,
+  v.tipo_doc_atendio,
+  v.num_doc_atendio,
+  NOW() AS created_at,
+  NOW() AS updated_at
 FROM viol v
 WHERE NOT v.ok_formato OR NOT v.ok_bloque
 ORDER BY v.id_operacion, v.npn;
 
 -- Regla 680
-
-
+-- Regla 680 con branch filtrando solo branch = 0
 DROP TABLE IF EXISTS reglas.regla_680;
 
 CREATE TABLE reglas.regla_680 AS
@@ -3531,43 +3491,60 @@ WITH base AS (
     lower(btrim(p.condicion_predio))            AS cp,
     substring(p.numero_predial_nacional FROM 22 FOR 5)  AS s22_26,
     substring(p.numero_predial_nacional FROM 27 FOR 4)  AS s27_30,
-    (p.numero_predial_nacional ~ '^[0-9]{30}$') AS ok_formato
-  FROM preprod.t_ilc_predio p
+    (p.numero_predial_nacional ~ '^[0-9]{30}$') AS ok_formato,
+    p.gdb_branch_id                             AS branch_id  -- <--- columna branch
+  FROM prod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('condominio.unidad_predial','condominio_unidad_predial')
+    AND p.gdb_branch_id = 0  -- <--- filtramos solo branch = 0
+),
+branch AS (
+  SELECT
+    b.*,
+    d.nombres_apellidos_quien_atendio AS nombre_atendio,
+    d.tipo_doc_quien_atendio AS tipo_doc_atendio,
+    d.num_doc_quien_atendio AS num_doc_atendio
+  FROM base b
+  LEFT JOIN prod.t_ilc_datosadicionaleslevantamientocatastral d
+    ON d.predio_guid = b.globalid
 ),
 viol AS (
   SELECT
-    b.*,
-    (b.ok_formato AND b.s22_26 = '80000' AND b.s27_30 <> '0000') AS ok_bloque,
+    br.*,
+    (br.ok_formato AND br.s22_26 = '80000' AND br.s27_30 <> '0000') AS ok_bloque,
     trim(both ', ' FROM concat_ws(', ',
-      CASE WHEN NOT b.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
-      CASE WHEN b.ok_formato AND b.s22_26 <> '80000' THEN 'pos22-26≠80000' END,
-      CASE WHEN b.ok_formato AND b.s27_30 = '0000' THEN 'pos27-30=0000' END
+      CASE WHEN NOT br.ok_formato THEN 'formato inválido: NPN debe tener 30 dígitos' END,
+      CASE WHEN br.ok_formato AND br.s22_26 <> '80000' THEN 'pos22-26≠80000' END,
+      CASE WHEN br.ok_formato AND br.s27_30 = '0000' THEN 'pos27-30=0000' END
     )) AS motivo
-  FROM base b
+  FROM branch br
 )
 SELECT
   '680'::text                        AS regla,
   't_ilc_Predio'::text                 AS objeto,
-  'preprod.t_ilc_predio'::text         AS tabla,
+  'prod.t_ilc_predio'::text         AS tabla,
   v.objectid,
   v.globalid,
   v.id_operacion,
   v.npn,
-  ('INCUMPLE: Condominio.Unidad_Predial → '||v.motivo)::text AS descripcion,
+  ('INCUMPLE: Condominio.Unidad_Predial → ' || v.motivo)::text AS descripcion,
   (
-    's22_26='||COALESCE(v.s22_26,'(null)')||
-    ', s27_30='||COALESCE(v.s27_30,'(null)')
-  )::text                           AS valor,
-  FALSE                             AS cumple,
-  NOW()                             AS created_at,
-  NOW()                             AS updated_at
+    's22_26=' || COALESCE(v.s22_26,'(null)') ||
+    ', s27_30=' || COALESCE(v.s27_30,'(null)')
+  )::text AS valor,
+  FALSE AS cumple,
+  v.nombre_atendio,
+  v.tipo_doc_atendio,
+  v.num_doc_atendio,
+  NOW() AS created_at,
+  NOW() AS updated_at
 FROM viol v
 WHERE NOT v.ok_formato OR NOT v.ok_bloque
 ORDER BY v.id_operacion, v.npn;
 
+
+
 ---728
-CREATE TABLE preprod.t_ilc_tramitesderechoterritorial (
+CREATE TABLE preprod.t_ilc_tramitesderechosterritoriales (
   objectid                SERIAL PRIMARY KEY,
   globalid                VARCHAR(38),
   id_operacion_predio     VARCHAR(255) NOT NULL,  -- FK lógico hacia t_ilc_predio.id_operacion
@@ -3579,8 +3556,6 @@ CREATE TABLE preprod.t_ilc_tramitesderechoterritorial (
   created_at              TIMESTAMP DEFAULT NOW(),
   updated_at              TIMESTAMP DEFAULT NOW()
 );
-
--- Regla 728
 DROP TABLE IF EXISTS reglas.regla_728;
 
 CREATE TABLE reglas.regla_728 AS
@@ -3588,13 +3563,14 @@ WITH base AS (
   SELECT
     t.objectid,
     t.globalid,
-    btrim(t.id_operacion_predio)                    AS id_operacion,
-    btrim(t.tramite)                                AS tramite,
-    btrim(t.entidad)                                AS entidad
-  FROM preprod.t_ilc_tramitesderechoterritorial t
+    btrim(t.id_operacion_predio) AS id_operacion,
+    btrim(t.tramite) AS tramite,
+    btrim(t.entidad) AS entidad,
+    t.id_operacion_predio  -- Usamos id_operacion_predio para relacionar con los predios
+  FROM preprod.t_ilc_tramitesderechosterritoriales t
   WHERE t.tramite IS NOT NULL AND t.entidad IS NOT NULL
 ),
-inc AS (
+inc AS (  
   SELECT
     b.*,
     CASE
@@ -3604,7 +3580,7 @@ inc AS (
         'Territorios_Ancestrales_Tradicionales',
         'Clarificacion_Vigencia_Legal_Coloniales_Republicanos'
       ) AND b.entidad = 'URT_Unidad_Restitucion_Tierras' THEN
-        'INCUMPLE: Para el trámite "'||b.tramite||
+        'INCUMPLE: Para el trámite "' || b.tramite || 
         '" la entidad no puede ser "URT_Unidad_Restitucion_Tierras".'
       WHEN b.tramite = 'Restitucion_Derechos_Territoriales'
         AND b.entidad = 'ANT_Agencia_Nacional_Tierras' THEN
@@ -3614,33 +3590,30 @@ inc AS (
   FROM base b
 )
 SELECT
-  '728'::text                               AS regla,
-  'ILC_TramitesDerechoTerritorial'::text    AS tabla,
-  'Tramite_Entidad_Correspondencia'::text   AS objeto,
+  '728'::text AS regla,
+  'ILC_TramitesDerechoTerritorial'::text AS tabla,
+  'Tramite_Entidad_Correspondencia'::text AS objeto,
   i.objectid,
   i.globalid,
   i.id_operacion,
-  NULL::text                                AS npn,
-  'tramite='||i.tramite||', entidad='||i.entidad AS valor,
-  i.motivo                                   AS descripcion,
-  FALSE                                      AS cumple,
+  NULL::text AS npn,
+  'tramite=' || i.tramite || ', entidad=' || i.entidad AS valor,
+  i.motivo AS descripcion,  -- Ahora 'motivo' está calculado en la subconsulta 'inc'
+  FALSE AS cumple,
   NOW() AS created_at,
   NOW() AS updated_at
 FROM inc i
-WHERE i.motivo IS NOT NULL
+WHERE i.motivo IS NOT NULL  -- Filtramos solo aquellos registros con 'motivo'
 ORDER BY i.id_operacion, i.objectid;
 
-
-
--- Regla 729
-
+-- Regla 729 con predio_guid y branch-ready
 DROP TABLE IF EXISTS reglas.regla_729;
 
 CREATE TABLE reglas.regla_729 AS
 WITH predio AS (
   SELECT
     p.objectid                          AS predio_oid,
-    p.globalid                          AS predio_gid,
+    p.globalid                          AS predio_guid,  -- <-- para joins futuros
     btrim(p.id_operacion)               AS id_operacion_predio,
     p.numero_predial_nacional           AS npn,
     substring(p.numero_predial_nacional FROM 6 FOR 2) AS d67,
@@ -3659,7 +3632,7 @@ derecho AS (
 base AS (
   SELECT
     pr.predio_oid,
-    pr.predio_gid,
+    pr.predio_guid,                       -- <-- agregamos predio_guid aquí
     pr.id_operacion_predio,
     pr.npn,
     pr.d67,
@@ -3704,18 +3677,17 @@ viol AS (
       WHEN f.fecha_inicio_tenencia IS NULL THEN
         'INCUMPLE: Fecha_Inicio_Tenencia es NULL; se esperaba '||to_char(f.fecha_esperada,'YYYY-MM-DD')
       WHEN f.fecha_inicio_tenencia <> f.fecha_esperada THEN
-        'INCUMPLE: Fecha_Inicio_Tenencia='||to_char(f.fecha_inicio_tenencia,'YYYY-MM-DD')||
-        '; se esperaba '||to_char(f.fecha_esperada,'YYYY-MM-DD')
+        'INCUMPLE: Fecha_Inicio_Tenencia='||to_char(f.fecha_inicio_tenencia,'YYYY-MM-DD')||'; se esperaba '||to_char(f.fecha_esperada,'YYYY-MM-DD')
     END AS motivo
   FROM filtro f
 )
 SELECT
   '729'::text                           AS regla,
-  't_ilc_Derecho'::text                   AS objeto,
-  'preprod.t_ilc_derecho'::text           AS tabla,
-  v.predio_oid                          AS objectid,
-  v.predio_gid                          AS globalid,
-  v.id_operacion_predio                 AS id_operacion,
+  't_ilc_Derecho'::text                 AS objeto,
+  'preprod.t_ilc_derecho'::text         AS tabla,
+  v.predio_oid                          AS objectid,            -- <-- objectid de la tabla predio
+  v.predio_guid                         AS globalid,            -- <-- guid del predio para joins
+  v.id_operacion_predio                 AS id_operacion,        -- <-- id_operacion de la tabla predio
   v.npn,
   COALESCE(v.motivo,'')::text           AS descripcion,
   (
@@ -3797,17 +3769,19 @@ ORDER BY b.npn;
 
 -- Regla 739
 
+-- Regla 739 con predio_guid (sin filtro branch)
+
 DROP TABLE IF EXISTS reglas.regla_739;
 
 CREATE TABLE reglas.regla_739 AS
 WITH pr AS (
   SELECT
     p.objectid,
-    p.globalid,
-    btrim(p.id_operacion)                      AS id_operacion,
-    p.numero_predial_nacional                  AS npn,
-    lower(btrim(p.condicion_predio))           AS cp,
-    btrim(p.tipo)                               AS tipo_predio
+    p.globalid                          AS predio_guid,       -- <-- agregamos predio_guid
+    btrim(p.id_operacion)               AS id_operacion,
+    p.numero_predial_nacional           AS npn,
+    lower(btrim(p.condicion_predio))    AS cp,
+    btrim(p.tipo)                       AS tipo_predio
   FROM preprod.t_ilc_predio p
   WHERE lower(btrim(p.condicion_predio)) IN ('via','vía','bien_uso_publico','bien_uso_público')
 ),
@@ -3822,7 +3796,7 @@ der AS (
 eval AS (
   SELECT
     pr.objectid,
-    pr.globalid,
+    pr.predio_guid,                     -- <-- usamos predio_guid
     pr.id_operacion,
     pr.npn,
     pr.cp,
@@ -3846,25 +3820,26 @@ viol AS (
   WHERE (NOT e.ok_tipo_predio) OR (NOT e.ok_dominio)
 )
 SELECT
-  '739'::text                   AS regla,
+  '739'::text                          AS regla,
   't_ilc_Predio / t_ilc_Derecho'::text AS objeto,
-  'preprod.t_ilc_predio'::text    AS tabla,
+  'preprod.t_ilc_predio'::text         AS tabla,
   v.objectid,
-  v.globalid,
+  v.predio_guid                         AS globalid,        -- <-- regresamos predio_guid
   v.id_operacion,
   v.npn,
-  ('INCUMPLE: '||v.motivo)::text AS descripcion,
+  ('INCUMPLE: '||v.motivo)::text       AS descripcion,
   (
     'condicion='||v.cp||
     ', tipo_predio='||COALESCE(v.tipo_predio,'(null)')||
     ', n_derechos='||v.n_derechos||
     ', n_dominio='||v.n_dominio
-  )::text                       AS valor,
-  FALSE                         AS cumple,
-  NOW()                         AS created_at,
-  NOW()                         AS updated_at
+  )::text                                AS valor,
+  FALSE                                   AS cumple,
+  NOW()                                   AS created_at,
+  NOW()                                   AS updated_at
 FROM viol v
 ORDER BY v.id_operacion, v.npn;
+
 
 
 --740
@@ -3927,6 +3902,7 @@ ORDER BY descripcion, b.npn;
 
 
 --741
+-- Regla 741 con id_operacion_predio
 DROP TABLE IF EXISTS reglas.regla_741;
 
 CREATE TABLE reglas.regla_741 AS
@@ -3990,7 +3966,7 @@ SELECT
   'preprod.t_ilc_predio'::text AS tabla,
   a.objectid,
   a.globalid,
-  a.id_operacion,
+  a.id_operacion,  -- <-- id_operacion del predio
   ('INCUMPLE: MI diligenciada pero no cumple con fuentes completas y válidas.')::text AS descripcion,
   (
     'mi='||COALESCE(a.mi_raw,'(null)')
@@ -4005,7 +3981,9 @@ FROM agg a
 WHERE a.n_completas = 0       -- no tiene ninguna fuente completa
    OR a.n_fuentes_posteriores > 0;  -- o la fecha_doc > fecha_visita
 
+
 --742
+--742 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_742;
 
 CREATE TABLE reglas.regla_742 AS
@@ -4020,20 +3998,29 @@ WITH base AS (
     i.tipo_documento
   FROM preprod.t_ilc_interesado i
 ),
+predio_guid AS (
+  SELECT 
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid
+  FROM preprod.t_ilc_predio p
+),
 viol AS (
   SELECT
-    b.*
+    b.*,
+    pg.predio_guid
   FROM base b
+  LEFT JOIN predio_guid pg
+    ON pg.id_operacion_predio = b.id_operacion_predio
   WHERE (b.tipo_norm IN ('persona_jurídica','persona_juridica'))
     AND (b.tipo_doc_norm NOT IN ('NIT','SECUENCIAL') OR b.tipo_doc_norm IS NULL)
 )
 SELECT
   '742'::text                            AS regla,
-  't_ilc_Interesado'::text                 AS objeto,
-  'preprod.t_ilc_interesado'::text         AS tabla,
+  't_ilc_Interesado'::text               AS objeto,
+  'preprod.t_ilc_interesado'::text       AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio                  AS id_operacion,
+  v.predio_guid                          AS globalid_predio,  -- <-- ahora usamos predio_guid
   NULL::varchar(30)                      AS npn,  -- aquí no aplica
   'INCUMPLE: Persona_Jurídica debe tener Tipo_Documento ∈ {NIT, Secuencial}'::text AS descripcion,
   COALESCE(v.tipo_documento,'(null)')::text AS valor,  -- solo muestra el valor malo
@@ -4041,9 +4028,10 @@ SELECT
   NOW()                                   AS created_at,
   NOW()                                   AS updated_at
 FROM viol v
-ORDER BY v.id_operacion_predio, v.objectid;
+ORDER BY v.predio_guid, v.objectid;
 
 --743
+--743 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_743;
 
 CREATE TABLE reglas.regla_743 AS
@@ -4056,27 +4044,42 @@ WITH base AS (
     upper(btrim(i.tipo_documento))      AS tipo_doc_norm,
     i.tipo_documento
   FROM preprod.t_ilc_interesado i
+),
+predio_guid AS (
+  SELECT 
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid
+  FROM preprod.t_ilc_predio p
+),
+viol AS (
+  SELECT
+    b.*,
+    pg.predio_guid
+  FROM base b
+  LEFT JOIN predio_guid pg
+    ON pg.id_operacion_predio = b.id_operacion_predio
+  WHERE b.tipo_norm IN ('persona_natural','persona natural')
+    AND b.tipo_doc_norm = 'NIT'
 )
 SELECT
   '743'::text                    AS regla,
-  't_ilc_Interesado'::text         AS objeto,
+  't_ilc_Interesado'::text       AS objeto,
   'preprod.t_ilc_interesado'::text AS tabla,
-  b.objectid,
-  b.globalid,
-  b.id_operacion_predio          AS id_operacion,
-  NULL::varchar(30)              AS npn,  -- no aplica
+  v.objectid,
+  v.globalid,
+  v.predio_guid                   AS globalid_predio,  -- <-- ahora usamos predio_guid
+  NULL::varchar(30)               AS npn,              -- no aplica
   'INCUMPLE: Persona_Natural no puede tener Tipo_Documento = NIT'::text AS descripcion,
-  COALESCE(b.tipo_documento,'(null)')::text AS valor,  -- el valor malo (NIT)
-  FALSE                         AS cumple,
-  NOW()                         AS created_at,
-  NOW()                         AS updated_at
-FROM base b
-WHERE b.tipo_norm IN ('persona_natural','persona natural')
-  AND b.tipo_doc_norm = 'NIT'
-ORDER BY b.id_operacion_predio, b.objectid;
+  COALESCE(v.tipo_documento,'(null)')::text AS valor,   -- el valor malo (NIT)
+  FALSE                           AS cumple,
+  NOW()                           AS created_at,
+  NOW()                           AS updated_at
+FROM viol v
+ORDER BY v.predio_guid, v.objectid;
 
 
 --744
+--744 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_744;
 
 CREATE TABLE reglas.regla_744 AS
@@ -4088,23 +4091,30 @@ WITH base AS (
     upper(btrim(i.tipo_documento)) AS tipo_doc_norm,
     btrim(i.documento_identidad)   AS doc_id
   FROM preprod.t_ilc_interesado i
-  WHERE upper(btrim(i.tipo_documento)) <> 'NIT'
+),
+predio_guid AS (
+  SELECT
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid
+  FROM preprod.t_ilc_predio p
 ),
 valid AS (
   SELECT
     b.*,
+    pg.predio_guid,
     (b.doc_id ~ '^[0-9]+$') AS solo_numeros,
-    -- > 0 (solo si es numérico)
     CASE WHEN b.doc_id ~ '^[0-9]+$'
          THEN (b.doc_id)::numeric > 0
          ELSE FALSE
     END AS mayor_cero
   FROM base b
+  LEFT JOIN predio_guid pg
+    ON pg.id_operacion_predio = b.id_operacion_predio
+  WHERE b.tipo_doc_norm <> 'NIT'
 ),
 asc_check AS (
   SELECT
     v.*,
-    -- ¿el documento COMPLETO es una secuencia ascendente (cada dígito = anterior+1)?
     CASE
       WHEN v.solo_numeros = FALSE OR length(v.doc_id) < 2 THEN FALSE
       ELSE NOT EXISTS (
@@ -4130,21 +4140,21 @@ viol AS (
 )
 SELECT
   '744'::text                     AS regla,
-  't_ilc_Interesado'::text          AS objeto,
-  'preprod.t_ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text        AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio           AS id_operacion,
-  NULL::varchar(30)               AS npn, -- no aplica
+  v.predio_guid                   AS globalid_predio, -- usamos predio_guid
+  NULL::varchar(30)               AS npn,
   ('INCUMPLE: Tipo_Documento<>"NIT" → Documento_identidad debe ser numérico (>0) y NO ser secuencia ascendente completa. '||v.motivo)::text AS descripcion,
   v.doc_id::text                  AS valor,
   FALSE                           AS cumple,
   NOW()                           AS created_at,
   NOW()                           AS updated_at
 FROM viol v
-ORDER BY v.id_operacion_predio, v.objectid;
-
---745
+WHERE v.predio_guid IS NOT NULL
+ORDER BY v.predio_guid, v.objectid;
+--745 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_745;
 
 CREATE TABLE reglas.regla_745 AS
@@ -4158,18 +4168,26 @@ WITH base AS (
   FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo_documento)) = 'NIT'
 ),
+predio_guid AS (
+  SELECT
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid
+  FROM preprod.t_ilc_predio p
+),
 valid AS (
   SELECT
     b.*,
+    pg.predio_guid,
     -- Cumple estructura "#########-#"
     (b.doc_id ~ '^[0-9]{9}-[0-9]$') AS estructura_ok,
-    -- Numérico > 0 (quitando guion)
     CASE 
       WHEN b.doc_id ~ '^[0-9]{9}-[0-9]$'
       THEN replace(b.doc_id, '-', '')::numeric > 0
       ELSE FALSE
     END AS mayor_cero
   FROM base b
+  LEFT JOIN predio_guid pg
+    ON pg.id_operacion_predio = b.id_operacion_predio
 ),
 viol AS (
   SELECT
@@ -4184,21 +4202,21 @@ viol AS (
 )
 SELECT
   '745'::text                     AS regla,
-  't_ilc_Interesado'::text          AS objeto,
-  'preprod.t_ilc_interesado'::text  AS tabla,
+  't_ilc_Interesado'::text        AS objeto,
+  'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio           AS id_operacion,
-  NULL::varchar(30)               AS npn, -- no aplica
+  v.predio_guid                   AS globalid_predio, -- usamos predio_guid
+  NULL::varchar(30)               AS npn,
   ('INCUMPLE: Tipo_Documento="NIT" → Documento_identidad debe ser >0 y cumplir estructura #########-#. '||v.motivo)::text AS descripcion,
   v.doc_id::text                  AS valor,
   FALSE                           AS cumple,
   NOW()                           AS created_at,
   NOW()                           AS updated_at
 FROM viol v
-ORDER BY v.id_operacion_predio, v.objectid;
-
---746
+WHERE v.predio_guid IS NOT NULL
+ORDER BY v.predio_guid, v.objectid;
+--746 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_746;
 
 CREATE TABLE reglas.regla_746 AS
@@ -4215,9 +4233,16 @@ WITH base AS (
   FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
 ),
+predio_guid AS (
+  SELECT 
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid
+  FROM preprod.t_ilc_predio p
+),
 viol AS (
   SELECT
     b.*,
+    pg.predio_guid,
     trim(both ', ' FROM concat_ws(', ',
       CASE 
         WHEN b.primer_nombre IS NULL OR b.primer_nombre = '' 
@@ -4243,8 +4268,9 @@ viol AS (
       END
     )) AS motivo
   FROM base b
+  LEFT JOIN predio_guid pg
+    ON pg.id_operacion_predio = b.id_operacion_predio
   WHERE 
-    -- incumple si hay motivo
     (b.primer_nombre IS NULL OR b.primer_nombre = '' OR b.primer_nombre !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
     OR (b.primer_apellido IS NULL OR b.primer_apellido = '' OR b.primer_apellido !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
     OR (b.segundo_nombre IS NOT NULL AND b.segundo_nombre <> '' AND b.segundo_nombre !~ '^[A-Za-zÁÉÍÓÚáéíóúÑñ ]+$')
@@ -4256,7 +4282,7 @@ SELECT
   'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio           AS id_operacion,
+  v.predio_guid                   AS globalid_predio,  -- usando predio_guid
   NULL::varchar(30)               AS npn, -- no aplica
   ('INCUMPLE: Persona_Natural → Nombres/Apellidos inválidos. '||v.motivo)::text AS descripcion,
   (
@@ -4269,10 +4295,9 @@ SELECT
   NOW()                           AS created_at,
   NOW()                           AS updated_at
 FROM viol v
-ORDER BY v.id_operacion_predio, v.objectid;
+ORDER BY v.predio_guid, v.objectid;
 
---747
-
+--747 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_747;
 
 CREATE TABLE reglas.regla_747 AS
@@ -4289,9 +4314,16 @@ WITH base AS (
   FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_JURIDICA'
 ),
+predio_guid AS (
+  SELECT 
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid
+  FROM preprod.t_ilc_predio p
+),
 viol AS (
   SELECT
     b.*,
+    pg.predio_guid,
     trim(both ', ' FROM concat_ws(', ',
       CASE WHEN b.primer_nombre IS NOT NULL AND b.primer_nombre <> '' 
            THEN 'Primer_Nombre debe ser NULL' END,
@@ -4303,6 +4335,8 @@ viol AS (
            THEN 'Segundo_Apellido debe ser NULL' END
     )) AS motivo
   FROM base b
+  LEFT JOIN predio_guid pg
+    ON pg.id_operacion_predio = b.id_operacion_predio
   WHERE 
     (b.primer_nombre IS NOT NULL AND b.primer_nombre <> '')
     OR (b.segundo_nombre IS NOT NULL AND b.segundo_nombre <> '')
@@ -4315,7 +4349,7 @@ SELECT
   'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio           AS id_operacion,
+  v.predio_guid                   AS globalid_predio,  -- usando predio_guid
   NULL::varchar(30)               AS npn, -- no aplica
   ('INCUMPLE: Persona_Jurídica → No debe tener nombres/apellidos diligenciados. '||v.motivo)::text AS descripcion,
   (
@@ -4328,9 +4362,11 @@ SELECT
   NOW()                           AS created_at,
   NOW()                           AS updated_at
 FROM viol v
-ORDER BY v.id_operacion_predio, v.objectid;
+ORDER BY v.predio_guid, v.objectid;
+
 
 --- regla 730
+--730 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_730;
 
 CREATE TABLE reglas.regla_730 AS
@@ -4369,10 +4405,10 @@ SELECT
   v.globalid,
   v.id_operacion_predio           AS id_operacion,
   v.npn,
-  ('INCUMPLE: '||v.motivo)::text  AS descripcion,
-  ('tipo_predio='||COALESCE(v.tipo_predio,'(null)')||
-   ', tipo_derecho='||COALESCE(v.tipo_derecho,'(null)')||
-   ', matricula_inmobiliaria='||COALESCE(v.matricula_inmobiliaria,'(null)')
+  ('INCUMPLE: ' || v.motivo)::text  AS descripcion,
+  ('tipo_predio=' || COALESCE(v.tipo_predio,'(null)') ||
+   ', tipo_derecho=' || COALESCE(v.tipo_derecho,'(null)') ||
+   ', matricula_inmobiliaria=' || COALESCE(v.matricula_inmobiliaria,'(null)')
   )::text                         AS valor,
   FALSE                           AS cumple,
   NOW()                           AS created_at,
@@ -4424,8 +4460,7 @@ SELECT
 FROM viol v
 WHERE array_length(v.motivos,1) > 0
 ORDER BY v.id_operacion_predio, v.objectid;
-
---749
+--749 con predio_guid
 DROP TABLE IF EXISTS reglas.regla_749;
 
 CREATE TABLE reglas.regla_749 AS
@@ -4477,8 +4512,7 @@ FROM viol v
 WHERE array_length(v.motivos,1) > 0
 ORDER BY v.id_operacion_predio, v.objectid;
 
-
---750
+--750 con predio_guid y ajuste en la relación de id_operacion_predio
 DROP TABLE IF EXISTS reglas.regla_750;
 
 CREATE TABLE reglas.regla_750 AS
@@ -4490,17 +4524,27 @@ WITH base AS (
     upper(btrim(i.tipo)) AS tipo,
     btrim(i.sexo) AS sexo
   FROM preprod.t_ilc_interesado i
-)
-, viol AS (
+),
+-- Relacionamos con t_ilc_predio para obtener el id_operacion_predio desde el predio_guid
+predio_guid AS (
+  SELECT 
+    p.objectid AS predio_oid,
+    p.globalid AS predio_guid, -- Utilizamos globalid de t_ilc_predio
+    p.id_operacion AS id_operacion_predio
+  FROM preprod.t_ilc_predio p
+),
+viol AS (
   SELECT
     b.*,
+    pg.predio_guid,  -- Añadimos predio_guid de la relación
     CASE 
       WHEN b.sexo IS NOT NULL AND b.tipo <> 'PERSONA_NATURAL'
       THEN 'Sexo='||COALESCE(b.sexo,'(null)')||', Tipo='||COALESCE(b.tipo,'(null)')
     END AS motivo
   FROM base b
+  LEFT JOIN predio_guid pg ON pg.predio_guid = b.globalid -- Relación entre predio_guid y globalid
   WHERE b.sexo IS NOT NULL
-    AND b.tipo <> 'PERSONA_NATURAL'
+    AND b.tipo <> 'PERSONA_NATURAL'  -- Filtro donde 'sexo' está diligenciado y 'tipo' no es 'PERSONA_NATURAL'
 )
 SELECT
   '750'::text AS regla,
@@ -4508,8 +4552,9 @@ SELECT
   'preprod.t_ilc_interesado'::text AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio,
-  NULL::varchar(30) AS npn,
+  v.id_operacion_predio,  -- Mostramos id_operacion_predio obtenido desde la relación
+  v.predio_guid,           -- Incluimos el predio_guid
+  NULL::varchar(30) AS npn,  -- No aplica en este caso
   'INCUMPLE: Si Sexo está diligenciado entonces Tipo debe ser Persona_Natural'::text AS descripcion,
   ('tipo='||v.tipo||' | sexo='||COALESCE(v.sexo,'(null)'))::text AS valor,
   FALSE AS cumple,
@@ -4518,7 +4563,8 @@ SELECT
 FROM viol v
 ORDER BY v.id_operacion_predio, v.objectid;
 
---751
+
+-- 751: Regla con id_operacion_predio y branch
 DROP TABLE IF EXISTS reglas.regla_751;
 
 CREATE TABLE reglas.regla_751 AS
@@ -4535,6 +4581,14 @@ WITH base AS (
   FROM preprod.t_ilc_interesado i
   WHERE upper(btrim(i.tipo)) = 'PERSONA_NATURAL'
 ),
+-- Relacionamos con t_ilc_predio para obtener id_operacion_predio desde predio_guid
+predio_guid AS (
+  SELECT 
+    p.objectid AS predio_oid,
+    p.globalid AS predio_guid, 
+    p.id_operacion AS id_operacion_predio
+  FROM preprod.t_ilc_predio p
+),
 norm AS (
   SELECT
     b.*,
@@ -4542,7 +4596,7 @@ norm AS (
     upper(btrim(b.segundo_nombre)) AS sn_raw,
     upper(btrim(b.primer_apellido)) AS pa_raw,
     upper(btrim(b.segundo_apellido)) AS sa_raw,
-    -- versión normalizada con signos reemplazados por espacio y espacios colapsados
+    -- Versión normalizada
     ' '||regexp_replace(regexp_replace(coalesce(upper(b.primer_nombre),''), '[\.\,&\-]', ' ', 'g'), '\s+', ' ', 'g')||' ' AS pn_norm,
     ' '||regexp_replace(regexp_replace(coalesce(upper(b.segundo_nombre),''),'[\.\,&\-]',' ','g'), '\s+', ' ', 'g')||' ' AS sn_norm,
     ' '||regexp_replace(regexp_replace(coalesce(upper(b.primer_apellido),''),'[\.\,&\-]',' ','g'), '\s+', ' ', 'g')||' ' AS pa_norm,
@@ -4550,34 +4604,30 @@ norm AS (
   FROM base b
 ),
 flag AS (
-
   SELECT
     n.*,
-    -- Primer Nombre
+    -- Marcas societarias en primer nombre, segundo nombre, primer apellido, segundo apellido
     (position(' LTDA ' IN n.pn_norm) > 0) AS pn_has_ltda,
     (position(' SA '   IN n.pn_norm) > 0) AS pn_has_sa,
     (position(' SCA '  IN n.pn_norm) > 0) AS pn_has_sca,
     (position(' SAS '  IN n.pn_norm) > 0) AS pn_has_sas,
     (position(' EN C ' IN n.pn_norm) > 0) AS pn_has_enc,
     (position(' CIA '  IN n.pn_norm) > 0) AS pn_has_cia,
-
-    -- Segundo Nombre
+    -- Segundo nombre
     (position(' LTDA ' IN n.sn_norm) > 0) AS sn_has_ltda,
     (position(' SA '   IN n.sn_norm) > 0) AS sn_has_sa,
     (position(' SCA '  IN n.sn_norm) > 0) AS sn_has_sca,
     (position(' SAS '  IN n.sn_norm) > 0) AS sn_has_sas,
     (position(' EN C ' IN n.sn_norm) > 0) AS sn_has_enc,
     (position(' CIA '  IN n.sn_norm) > 0) AS sn_has_cia,
-
-    -- Primer Apellido
+    -- Primer apellido
     (position(' LTDA ' IN n.pa_norm) > 0) AS pa_has_ltda,
     (position(' SA '   IN n.pa_norm) > 0) AS pa_has_sa,
     (position(' SCA '  IN n.pa_norm) > 0) AS pa_has_sca,
     (position(' SAS '  IN n.pa_norm) > 0) AS pa_has_sas,
     (position(' EN C ' IN n.pa_norm) > 0) AS pa_has_enc,
     (position(' CIA '  IN n.pa_norm) > 0) AS pa_has_cia,
-
-    -- Segundo Apellido
+    -- Segundo apellido
     (position(' LTDA ' IN n.sa_norm) > 0) AS sa_has_ltda,
     (position(' SA '   IN n.sa_norm) > 0) AS sa_has_sa,
     (position(' SCA '  IN n.sa_norm) > 0) AS sa_has_sca,
@@ -4587,31 +4637,31 @@ flag AS (
   FROM norm n
 ),
 viol AS (
-  -- Construye lista de motivos "campo contiene TOKEN" con su valor original
   SELECT
     f.*,
     ARRAY_REMOVE(ARRAY[
+      -- Primer nombre
       CASE WHEN pn_has_ltda THEN 'primer_nombre contiene LTDA (valor='||coalesce(f.primer_nombre,'(null)')||')' END,
       CASE WHEN pn_has_sa   THEN 'primer_nombre contiene SA (valor='  ||coalesce(f.primer_nombre,'(null)')||')' END,
       CASE WHEN pn_has_sca  THEN 'primer_nombre contiene SCA (valor=' ||coalesce(f.primer_nombre,'(null)')||')' END,
       CASE WHEN pn_has_sas  THEN 'primer_nombre contiene SAS (valor=' ||coalesce(f.primer_nombre,'(null)')||')' END,
       CASE WHEN pn_has_enc  THEN 'primer_nombre contiene EN C (valor='||coalesce(f.primer_nombre,'(null)')||')' END,
       CASE WHEN pn_has_cia  THEN 'primer_nombre contiene CIA (valor=' ||coalesce(f.primer_nombre,'(null)')||')' END,
-
+      -- Segundo nombre
       CASE WHEN sn_has_ltda THEN 'segundo_nombre contiene LTDA (valor='||coalesce(f.segundo_nombre,'(null)')||')' END,
       CASE WHEN sn_has_sa   THEN 'segundo_nombre contiene SA (valor='  ||coalesce(f.segundo_nombre,'(null)')||')' END,
       CASE WHEN sn_has_sca  THEN 'segundo_nombre contiene SCA (valor=' ||coalesce(f.segundo_nombre,'(null)')||')' END,
       CASE WHEN sn_has_sas  THEN 'segundo_nombre contiene SAS (valor=' ||coalesce(f.segundo_nombre,'(null)')||')' END,
       CASE WHEN sn_has_enc  THEN 'segundo_nombre contiene EN C (valor='||coalesce(f.segundo_nombre,'(null)')||')' END,
       CASE WHEN sn_has_cia  THEN 'segundo_nombre contiene CIA (valor=' ||coalesce(f.segundo_nombre,'(null)')||')' END,
-
+      -- Primer apellido
       CASE WHEN pa_has_ltda THEN 'primer_apellido contiene LTDA (valor='||coalesce(f.primer_apellido,'(null)')||')' END,
       CASE WHEN pa_has_sa   THEN 'primer_apellido contiene SA (valor='  ||coalesce(f.primer_apellido,'(null)')||')' END,
       CASE WHEN pa_has_sca  THEN 'primer_apellido contiene SCA (valor=' ||coalesce(f.primer_apellido,'(null)')||')' END,
       CASE WHEN pa_has_sas  THEN 'primer_apellido contiene SAS (valor=' ||coalesce(f.primer_apellido,'(null)')||')' END,
       CASE WHEN pa_has_enc  THEN 'primer_apellido contiene EN C (valor='||coalesce(f.primer_apellido,'(null)')||')' END,
       CASE WHEN pa_has_cia  THEN 'primer_apellido contiene CIA (valor=' ||coalesce(f.primer_apellido,'(null)')||')' END,
-
+      -- Segundo apellido
       CASE WHEN sa_has_ltda THEN 'segundo_apellido contiene LTDA (valor='||coalesce(f.segundo_apellido,'(null)')||')' END,
       CASE WHEN sa_has_sa   THEN 'segundo_apellido contiene SA (valor='  ||coalesce(f.segundo_apellido,'(null)')||')' END,
       CASE WHEN sa_has_sca  THEN 'segundo_apellido contiene SCA (valor=' ||coalesce(f.segundo_apellido,'(null)')||')' END,
@@ -4627,15 +4677,20 @@ SELECT
   'preprod.t_ilc_interesado'::text  AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio           AS id_operacion,
+  v.id_operacion_predio           AS id_operacion,  -- Obtención del id_operacion_predio
   NULL::varchar(30)               AS npn,  -- no aplica
   'INCUMPLE: Persona_Natural no debe contener marcas societarias (LTDA, SA, SCA, SAS, EN C, CIA) en nombres/apellidos.'::text AS descripcion,
-  array_to_string(v.motivos, ', ')::text   AS valor,  -- lista "campo contiene TOKEN (valor=...)"
+  array_to_string(v.motivos, ', ')::text   AS valor,  -- Lista de "campo contiene TOKEN (valor=...)"
   FALSE                           AS cumple,
   NOW()                           AS created_at,
-  NOW()                           AS updated_at
+  NOW()                           AS updated_at,
+  -- Branch con lógica condicional
+  CASE
+    WHEN v.id_operacion_predio IS NULL THEN 'Sin operación asociada'
+    ELSE 'Operación asociada'
+  END AS branch_result -- Branch en base a si id_operacion_predio es NULL o no
 FROM viol v
-WHERE array_length(v.motivos,1) > 0
+WHERE array_length(v.motivos, 1) > 0
 ORDER BY v.id_operacion_predio, v.objectid;
 
 
@@ -5033,39 +5088,50 @@ WITH base AS (
         btrim(lower(p.tipo))           AS predio_tipo
     FROM preprod.t_ilc_derecho d
     JOIN preprod.t_ilc_predio p
-      ON p.id_operacion = d.id_operacion_predio
-    WHERE lower(btrim(d.tipo)) = 'posesion'
+      ON p.id_operacion = d.id_operacion_predio  -- Relacionamos por id_operacion
+),
+predio_guid AS (
+  SELECT 
+    p.id_operacion AS id_operacion_predio,
+    p.globalid     AS predio_guid  -- Obtenemos el predio_guid
+  FROM preprod.t_ilc_predio p
 ),
 viol AS (
     SELECT
         b.*,
+        pg.predio_guid,  -- Añadimos el predio_guid a la selección
         CASE 
           WHEN b.predio_tipo IS NULL OR b.predio_tipo <> 'privado'
             THEN 't_ilc_Derecho.Tipo=Posesion → t_ilc_Predio.Tipo debe ser "Privado"'
         END AS motivo
     FROM base b
+    LEFT JOIN predio_guid pg
+        ON pg.id_operacion_predio = b.id_operacion_predio -- Relacionamos por id_operacion_predio
 )
 SELECT
     '731'::text                       AS regla,
-    't_ilc_Derecho'::text               AS objeto,
-    'preprod.t_ilc_derecho'::text       AS tabla,
-    v.objectid,
-    v.globalid,
-    v.id_operacion_predio             AS id_operacion,
+    't_ilc_Derecho'::text             AS objeto,
+    'preprod.t_ilc_derecho'::text     AS tabla,
+    MAX(v.objectid) AS objectid,  -- Usamos MAX() para objectid
+    MAX(v.globalid) AS globalid,  -- Usamos MAX() para globalid
+    v.id_operacion_predio            AS id_operacion,  -- Agrupamos por id_operacion_predio
+    v.predio_guid                    AS globalid_predio,  -- Incluimos el predio_guid
     NULL::varchar(30)                 AS npn, -- no aplica aquí
-    ('INCUMPLE: '||v.motivo)::text    AS descripcion,
-    (
-      'derecho_tipo='||COALESCE(v.derecho_tipo,'(null)')||
-      ', predio_tipo='||COALESCE(v.predio_tipo,'(null)')
-    )::text                           AS valor,
+    MAX('INCUMPLE: ' || v.motivo)::text AS descripcion,  -- Usamos MAX() para motivo
+    -- Concatenamos los derechos que no cuadran (sin repetir predio_tipo)
+    'derechos: ' || string_agg(
+        COALESCE(v.derecho_tipo, '(null)'), ', '
+    )::text || ', predio_tipo=' || MAX(COALESCE(v.predio_tipo, '(null)')) AS valor,  -- Concatenamos derechos y solo un predio_tipo
     FALSE                             AS cumple,
     NOW()                             AS created_at,
     NOW()                             AS updated_at
 FROM viol v
 WHERE v.motivo IS NOT NULL
-ORDER BY v.id_operacion_predio, v.objectid;
+GROUP BY v.id_operacion_predio, v.predio_guid  -- Agrupamos solo por id_operacion_predio y predio_guid
+ORDER BY v.id_operacion_predio, objectid;
 
 --758
+--758 sin filtro branch
 DROP TABLE IF EXISTS reglas.regla_758;
 
 CREATE TABLE reglas.regla_758 AS
@@ -5086,7 +5152,7 @@ agg AS (
     COUNT(i.objectid) AS n_interesados
   FROM base b
   LEFT JOIN preprod.t_ilc_interesado i
-    ON b.id_operacion_predio = btrim(i.id_operacion_predio)
+    ON b.id_operacion_predio = btrim(i.id_operacion_predio) -- Relacionamos por id_operacion_predio
   GROUP BY b.objectid, b.globalid, b.id_operacion_predio, b.npn
 )
 SELECT
@@ -5095,7 +5161,7 @@ SELECT
   'preprod.t_ilc_predio'::text   AS tabla,
   a.objectid,
   a.globalid,
-  a.id_operacion_predio        AS id_operacion,
+  a.id_operacion_predio        AS id_operacion,  -- Mostramos id_operacion_predio
   a.npn,
   'INCUMPLE: Todo t_ilc_Predio debe relacionar al menos un t_ilc_Interesado'::text AS descripcion,
   ('n_interesados='||a.n_interesados||', npn='||COALESCE(a.npn,'(null)'))::text AS valor,
@@ -5106,107 +5172,134 @@ FROM agg a
 WHERE a.n_interesados = 0
 ORDER BY a.id_operacion_predio, a.objectid;
 
---759
-
+--759 con predio_guid para reglas_prod
 DROP TABLE IF EXISTS reglas.regla_759;
 
 CREATE TABLE reglas.regla_759 AS
 WITH base AS (
+    SELECT
+        i.objectid AS objectid_interesado,
+        i.globalid AS globalid_interesado,
+        btrim(i.id_operacion_predio) AS id_operacion_predio,
+        NULLIF(btrim(i.primer_nombre),'') AS primer_nombre,
+        NULLIF(btrim(i.segundo_nombre),'') AS segundo_nombre,
+        NULLIF(btrim(i.primer_apellido),'') AS primer_apellido,
+        NULLIF(btrim(i.segundo_apellido),'') AS segundo_apellido,
+        NULLIF(btrim(i.razon_social),'') AS razon_social,
+        NULLIF(btrim(i.documento_identidad),'') AS documento_identidad,
+        p.numero_predial_nacional AS npn,
+        p.id_operacion AS id_operacion_predio_real
+    FROM preprod.t_ilc_interesado i
+    LEFT JOIN preprod.t_ilc_predio p
+        ON p.id_operacion = i.id_operacion_predio
+),
+agrupado AS (
+    SELECT
+        primer_nombre,
+        segundo_nombre,
+        primer_apellido,
+        segundo_apellido,
+        razon_social,
+        COUNT(DISTINCT documento_identidad) AS n_docs,
+        ARRAY_AGG(DISTINCT documento_identidad) AS docs_distintos,
+        ARRAY_AGG(DISTINCT id_operacion_predio_real) AS predios,
+        ARRAY_AGG(DISTINCT npn) AS npns
+    FROM base
+    GROUP BY primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, razon_social
+    HAVING COUNT(DISTINCT documento_identidad) > 1
+)
+SELECT
+    '759'::text AS regla,
+    't_ilc_Interesado'::text AS objeto,
+    'preprod.t_ilc_interesado'::text AS tabla,
+    NULL::bigint AS objectid,
+    NULL::uuid AS globalid,
+    array_to_string(a.predios, ',') AS id_operacion,  -- aquí llenamos id_operacion
+    array_to_string(a.npns, ',') AS npn,             -- aquí llenamos npn
+    'INCUMPLE: Existen ' || a.n_docs || ' documentos diferentes asociados a mismos nombres/razón social' AS descripcion,
+    'Nombres=' || COALESCE(NULLIF(a.primer_nombre,''),'(null)') || ' ' ||
+    COALESCE(NULLIF(a.segundo_nombre,''),'') || ' ' ||
+    COALESCE(NULLIF(a.primer_apellido,''),'') || ' ' ||
+    COALESCE(NULLIF(a.segundo_apellido,''),'') ||
+    ', Razon_Social=' || COALESCE(NULLIF(a.razon_social,''),'(null)') ||
+    ', Docs=' || array_to_string(a.docs_distintos, ',') ||
+    ', Predios=' || array_to_string(a.predios, ',') ||
+    ', NPN=' || array_to_string(a.npns, ',') AS valor,
+    FALSE AS cumple,
+    NOW() AS created_at,
+    NOW() AS updated_at
+FROM agrupado a;
+
+
+--760 con id_operacion_predio obtenido por predio_guid
+-- 760: Documento_Identidad duplicado (sin branch)
+DROP TABLE IF EXISTS reglas.regla_760;
+
+CREATE TABLE reglas.regla_760 AS
+WITH interesado AS (
   SELECT
     i.objectid,
     i.globalid,
-    btrim(i.id_operacion_predio) AS id_operacion_predio,
-    NULLIF(btrim(i.primer_nombre),'')     AS primer_nombre,
-    NULLIF(btrim(i.segundo_nombre),'')    AS segundo_nombre,
-    NULLIF(btrim(i.primer_apellido),'')   AS primer_apellido,
-    NULLIF(btrim(i.segundo_apellido),'')  AS segundo_apellido,
-    NULLIF(btrim(i.razon_social),'')      AS razon_social,
+    btrim(i.id_operacion_predio)            AS id_operacion_predio,
     NULLIF(btrim(i.documento_identidad),'') AS documento_identidad
   FROM preprod.t_ilc_interesado i
 ),
--- Agrupo por combinación de nombres y razón social
-agrupado AS (
+predio AS (
   SELECT
-    COALESCE(primer_nombre,'')   AS primer_nombre,
-    COALESCE(segundo_nombre,'')  AS segundo_nombre,
-    COALESCE(primer_apellido,'') AS primer_apellido,
-    COALESCE(segundo_apellido,'')AS segundo_apellido,
-    COALESCE(razon_social,'')    AS razon_social,
-    COUNT(DISTINCT documento_identidad)   AS n_docs,
-    ARRAY_AGG(DISTINCT documento_identidad) AS docs_distintos,
-    ARRAY_AGG(DISTINCT id_operacion_predio) AS predios
-  FROM base
-  GROUP BY primer_nombre, segundo_nombre, primer_apellido, segundo_apellido, razon_social
-  HAVING COUNT(DISTINCT documento_identidad) > 1
-)
-SELECT
-  '759'::text AS regla,
-  't_ilc_Interesado'::text AS objeto,
-  'preprod.t_ilc_interesado'::text AS tabla,
-  NULL::bigint AS objectid,
-  NULL::uuid   AS globalid,
-  NULL::text   AS id_operacion,
-  NULL::text   AS npn,
-  (
-    'INCUMPLE: Existen '||a.n_docs||' documentos diferentes asociados a mismos nombres/razón social'
-  )::text AS descripcion,
-  (
-    'Nombres='||
-    COALESCE(NULLIF(a.primer_nombre,''),'(null)')||' '||
-    COALESCE(NULLIF(a.segundo_nombre,''),'')||' '||
-    COALESCE(NULLIF(a.primer_apellido,''),'')||' '||
-    COALESCE(NULLIF(a.segundo_apellido,''),'')||
-    ', Razon_Social='||COALESCE(NULLIF(a.razon_social,''),'(null)')||
-    ', Docs='||array_to_string(a.docs_distintos, ',')||
-    ', Predios='||array_to_string(a.predios, ',')
-  )::text AS valor,
-  FALSE AS cumple,
-  NOW()  AS created_at,
-  NOW()  AS updated_at
-FROM agrupado a;
-
---760
-DROP TABLE IF EXISTS reglas.regla_756;
-
-CREATE TABLE reglas.regla_756 AS
-WITH base AS (
+    btrim(p.id_operacion)       AS id_operacion,
+    p.numero_predial_nacional   AS npn
+  FROM preprod.t_ilc_predio p
+),
+base AS (
   SELECT
-    i.objectid,
-    i.globalid,
-    btrim(i.id_operacion_predio) AS id_operacion_predio,
-    NULLIF(btrim(i.documento_identidad),'') AS documento_identidad
-  FROM preprod.t_ilc_interesado i
+    it.objectid,
+    it.globalid,
+    it.documento_identidad,
+    it.id_operacion_predio,
+    pr.id_operacion,
+    pr.npn
+  FROM interesado it
+  LEFT JOIN predio pr
+    ON pr.id_operacion = it.id_operacion_predio
 ),
 duplicados AS (
   SELECT
-    documento_identidad,
-    COUNT(*) AS n_veces,
-    ARRAY_AGG(objectid) AS objetos,
-    ARRAY_AGG(globalid) AS globales,
-    ARRAY_AGG(id_operacion_predio) AS predios
-  FROM base
-  WHERE documento_identidad IS NOT NULL
-  GROUP BY documento_identidad
+    b.documento_identidad,
+    COUNT(*)                                   AS n_veces,
+    ARRAY_AGG(DISTINCT b.objectid)             AS objectids_interesado,
+    ARRAY_AGG(DISTINCT b.globalid)             AS globalids_interesado,
+    ARRAY_AGG(DISTINCT b.id_operacion_predio)  AS id_ops_interesado,
+    ARRAY_AGG(DISTINCT b.id_operacion)         AS id_ops,
+    ARRAY_AGG(DISTINCT b.npn)                  AS npns
+  FROM base b
+  WHERE b.documento_identidad IS NOT NULL
+  GROUP BY b.documento_identidad
   HAVING COUNT(*) > 1
 )
 SELECT
-  '756'::text AS regla,
-  't_ilc_Interesado'::text AS objeto,
-  'preprod.t_ilc_interesado'::text AS tabla,
-  NULL::bigint AS objectid,
-  NULL::uuid   AS globalid,
-  NULL::text   AS id_operacion,
-  NULL::text   AS npn,
+  '760'::text                           AS regla,
+  't_ilc_Interesado'::text              AS objeto,
+  'preprod.t_ilc_interesado'::text      AS tabla,
+  NULL::bigint                          AS objectid,
+  NULL::uuid                            AS globalid,
+  array_to_string(d.id_ops, ',')        AS id_operacion,
+  array_to_string(d.npns, ',')          AS npn,
   ('INCUMPLE: Documento_Identidad duplicado, aparece '||d.n_veces||' veces')::text AS descripcion,
-  ('Documento_Identidad='||d.documento_identidad||
-   ', ObjectIDs='||array_to_string(d.objetos, ',')||
-   ', GlobalIDs='||array_to_string(d.globales, ',')||
-   ', Predios='||array_to_string(d.predios, ',')
-  )::text AS valor,
-  FALSE AS cumple,
-  NOW() AS created_at,
-  NOW() AS updated_at
+  (
+    'Documento_Identidad='||d.documento_identidad||
+    ', ObjectIDs_Interesado='||array_to_string(d.objectids_interesado, ',')||
+    ', GlobalIDs_Interesado='||array_to_string(d.globalids_interesado, ',')||
+    ', Id_Operaciones='||array_to_string(d.id_ops, ',')||
+    ', NPN='||array_to_string(d.npns, ',')||
+    ', Id_Operaciones_Interesado='||array_to_string(d.id_ops_interesado, ',')
+  )::text                             AS valor,
+  FALSE                                AS cumple,
+  NOW()                                AS created_at,
+  NOW()                                AS updated_at
 FROM duplicados d;
+
+
+
 
 --761
 DROP TABLE IF EXISTS reglas.regla_761;
@@ -8850,7 +8943,6 @@ WITH enp AS (
     'CANCELACIÓN',
     'CANCELACION_POR_DESENGLOBE',
     'CANCELACIÓN_POR_DESENGLOBE',
-    'Desenglobe_Division_Material'
     'CANCELACION_POR_ENGLOBE',
     'CANCELACIÓN_POR_ENGLOBE'
   )
