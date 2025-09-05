@@ -5344,7 +5344,7 @@ WHERE NOT v.ok_regla
 ORDER BY v.id_operacion_predio, v.objectid;
 
 --732
-
+  -- 732 — Predio.Tipo=Privado NO puede tener Derecho.Tipo=Ocupacion (join por predio_guid)
 DROP TABLE IF EXISTS reglas.regla_732;
 
 CREATE TABLE reglas.regla_732 AS
@@ -5352,41 +5352,47 @@ WITH base AS (
   SELECT
     d.objectid,
     d.globalid,
-    btrim(d.id_operacion_predio) AS id_operacion_predio,
-    lower(btrim(d.tipo)) AS derecho_tipo,
-    lower(btrim(p.tipo)) AS predio_tipo
+    d.predio_guid,                                  -- clave para enlazar con ILC_Predio
+    lower(btrim(d.tipo))        AS derecho_tipo,
+
+    p.globalid                  AS predio_globalid,
+    lower(btrim(p.tipo))        AS predio_tipo,
+    btrim(p.id_operacion)       AS id_operacion,
+    p.numero_predial_nacional   AS npn
   FROM preprod.t_ilc_derecho d
-  JOIN preprod.t_ilc_predio p
-    ON p.id_operacion = d.id_operacion_predio
+  LEFT JOIN preprod.t_ilc_predio p
+    ON p.globalid = d.predio_guid                  -- << join por GUID
 ),
 viol AS (
   SELECT
     b.*,
-    NOT (b.predio_tipo = 'privado' AND b.derecho_tipo = 'ocupacion') AS ok_regla,
-    CASE 
-      WHEN b.predio_tipo = 'privado' AND b.derecho_tipo = 'ocupacion'
+    (b.predio_tipo = 'privado' AND b.derecho_tipo = 'ocupacion') AS viola,
+    CASE
+      WHEN (b.predio_tipo = 'privado' AND b.derecho_tipo = 'ocupacion')
         THEN 'Predio.Tipo=Privado pero Derecho.Tipo=Ocupacion'
     END AS motivo
   FROM base b
 )
 SELECT
-  '732'::text AS regla,
-  't_ilc_Derecho'::text AS objeto,
-  'preprod.t_ilc_derecho'::text AS tabla,
+  '732'::text                         AS regla,
+  't_ilc_Derecho'::text               AS objeto,
+  'preprod.t_ilc_derecho'::text       AS tabla,
   v.objectid,
   v.globalid,
-  v.id_operacion_predio,
-  NULL::text AS npn,
+  v.id_operacion,                     -- lleno
+  v.npn,                              -- lleno
   ('INCUMPLE: Si Predio.Tipo=Privado → Derecho.Tipo≠Ocupacion. '||v.motivo)::text AS descripcion,
-  ('Predio.Tipo='||COALESCE(v.predio_tipo,'(null)')||
-   ', Derecho.Tipo='||COALESCE(v.derecho_tipo,'(null)')
-  )::text AS valor,
+  (
+    'Predio.Tipo='||COALESCE(v.predio_tipo,'(null)')||
+    ', Derecho.Tipo='||COALESCE(v.derecho_tipo,'(null)')||
+    ', predio_guid='||COALESCE(v.predio_guid::text,'(null)')
+  )::text                             AS valor,
   FALSE AS cumple,
-  NOW() AS created_at,
-  NOW() AS updated_at
+  NOW()  AS created_at,
+  NOW()  AS updated_at
 FROM viol v
-WHERE NOT v.ok_regla
-ORDER BY v.id_operacion_predio, v.objectid;
+WHERE v.viola
+ORDER BY v.id_operacion, v.objectid;
 
 --733
 DROP TABLE IF EXISTS reglas.regla_733;
