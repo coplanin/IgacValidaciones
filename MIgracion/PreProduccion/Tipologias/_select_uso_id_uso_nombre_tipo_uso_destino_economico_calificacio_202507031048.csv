@@ -1,0 +1,228 @@
+uso_id;uso_nombre;tipo_uso;destino_economico;calificacion_anexo_id;calificacion_anexo_descripcion;cantidad
+0;No especificado;CONVENCIONAL;RESIDENCIAL;;;862
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";11
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";30
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";32
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;6;"Estructura ladrillo bloque; cubierta de zinc, eternit o teja de barro semimuros en bloque o ladrillo; pisos en cemento; conservación general buena o regular.";1
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;7;"Estructura en ladrillo o bloque; cubierta de zinc, eternit o teja de barro; con o sin muros; pisos en tierra; conservación regular mala.";1
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;8;"Estructura en madera;  cubierta de zinc; eternit o teja de barro; con o sin muros; pisos en tierra; conservación regular o mala.";2
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;10;"Estructura en bloque o ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena o regular.";4
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;15;"Estructura en ladrillo; cubierta de zinc, eternit, o teja de barro; con muros o sin muros; pisos en tierra; conservación regular a mala.";2
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;21;Piscinas de tamaña mediano, enchape en azulejo, sistema  de purificación rudimentario, comunes en fincas de recreo  o centros de recreación;1
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;33;"Estructura en bloque o ladrillo cubierta en zinc, teja de barro o paja; estado de conservación general bueno.";2
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;34;"Estructura metálica; todo tipo de cubiertas; piso en cemento; estado de conservación bueno a regular.";1
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;4
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;50;Altura entre 3 y 9 Mts., longitud 25  a 75 Mts.  Estructura y soportes en concreto o metálica.  Incluye piscina de acceso y sistema de bombeo y purificación.    ;1
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;54;"Estructura metálica; cubierta cristalita o vidrio; piso en baldosa común";2
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;55;"Estructura metálica; cubierta de eternit y piso en cemento";1
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;60;Sin descripción asociada;6
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;66;Cimientos y estructura soportes verticales(columnas) y horizontales(vigas) destinados a sostener la totalidad o parte de una futura construcción o edificación acompañados de muros y placas base.;9
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;67;Cimentación y estructura con soportes verticales(columnas) y horizontales(vigas) destinados a sostener la totalidad o parte de una futura construcción o edificación acompañados de muros o placas base.;2
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;68;Cimentación sin estructura destinada a sostener la totalidad o parte de una futura construcción o edificación acompañados de muros o placas base.;2
+1;VIVIENDA HASTA 3 PISOS;CONVENCIONAL;RESIDENCIAL;;;265467
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;1;"Locales- venta de vehículos:  Estructura concreto, cubierta cercha metálica y teja canaleta; fachada vidrio y polarizado, piso baldosín conservación general buena.";31
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";1266
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";17673
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";23611
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;6;"Estructura ladrillo bloque; cubierta de zinc, eternit o teja de barro semimuros en bloque o ladrillo; pisos en cemento; conservación general buena o regular.";2
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;7;"Estructura en ladrillo o bloque; cubierta de zinc, eternit o teja de barro; con o sin muros; pisos en tierra; conservación regular mala.";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;10;"Estructura en bloque o ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena o regular.";2
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;11;"Estructura en ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos en tierra, conservación regular o mala.";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;12;Estructura en madera cubierta de zinc, eternit o tejas de barro muros en madera, pisos en tierra, conservación regular o mala.;1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;14;Estructura en ladrillo o bloque, cubierta de zinc, eternit o teja de barro, semimuros en bloque  o ladrillo, pisos en cemento o baldosa conservación general buena.;1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;15;"Estructura en ladrillo; cubierta de zinc, eternit, o teja de barro; con muros o sin muros; pisos en tierra; conservación regular a mala.";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;20;"Piscinas semi-olímpicas con sistemas de purificación; enchape en azulejo fino;  Se encuentra comunes en  clubes y  centros de recreación.";4
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;29;"Beneficiaderos construidos en materiales económicos (bareque, tapia) pisos en tierra conservación regular a mala; se encuentran en este tipo los elementos apenas necesarios:  tanques, despulpaderos, canales, etc., en condiciones rudimentarias, comunes en fincas minifundistas.";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;33;"Estructura en bloque o ladrillo cubierta en zinc, teja de barro o paja; estado de conservación general bueno.";3
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;2
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;42;Estructura en madera aserrada, formado por tres varales, pisos en tierra  y conservación general regular a  mala;2
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;43;Estructura en madera burda, pisos en tierra y conservación general regular a mala.;3
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;50;Altura entre 3 y 9 Mts., longitud 25  a 75 Mts.  Estructura y soportes en concreto o metálica.  Incluye piscina de acceso y sistema de bombeo y purificación.    ;3
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;53;"Estructura metálica; cubierta cristalita o vidrio; piso en baldosa fina.";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;54;"Estructura metálica; cubierta cristalita o vidrio; piso en baldosa común";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;55;"Estructura metálica; cubierta de eternit y piso en cemento";1
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;60;Sin descripción asociada;5
+2;RAMADAS - COBERTIZOS - CANEYES;NO CONVENCIONAL;ANEXO;;;873
+3;GALPONES - GALLINEROS;NO CONVENCIONAL;ANEXO;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";2
+3;GALPONES - GALLINEROS;NO CONVENCIONAL;ANEXO;5;"Estructura metálica  cubierta de zinc, eternit o teja de barro; semimuros en bloque o ladrillo; pisos de cemento; conservación general buena.";21
+3;GALPONES - GALLINEROS;NO CONVENCIONAL;ANEXO;6;"Estructura ladrillo bloque; cubierta de zinc, eternit o teja de barro semimuros en bloque o ladrillo; pisos en cemento; conservación general buena o regular.";126
+3;GALPONES - GALLINEROS;NO CONVENCIONAL;ANEXO;7;"Estructura en ladrillo o bloque; cubierta de zinc, eternit o teja de barro; con o sin muros; pisos en tierra; conservación regular mala.";347
+3;GALPONES - GALLINEROS;NO CONVENCIONAL;ANEXO;8;"Estructura en madera;  cubierta de zinc; eternit o teja de barro; con o sin muros; pisos en tierra; conservación regular o mala.";123
+3;GALPONES - GALLINEROS;NO CONVENCIONAL;ANEXO;;;10
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";1
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;9;"Estructura metálica;  cubierta de zinc, eternit o teja de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena.";57
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;10;"Estructura en bloque o ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena o regular.";495
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;11;"Estructura en ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos en tierra, conservación regular o mala.";790
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;12;Estructura en madera cubierta de zinc, eternit o tejas de barro muros en madera, pisos en tierra, conservación regular o mala.;242
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;15;"Estructura en ladrillo; cubierta de zinc, eternit, o teja de barro; con muros o sin muros; pisos en tierra; conservación regular a mala.";1
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;33;"Estructura en bloque o ladrillo cubierta en zinc, teja de barro o paja; estado de conservación general bueno.";1
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;2
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;42;Estructura en madera aserrada, formado por tres varales, pisos en tierra  y conservación general regular a  mala;1
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;60;Sin descripción asociada;2
+4;ESTABLOS - PESEBRERAS - CABALLERIZAS;NO CONVENCIONAL;ANEXO;;;54
+5;COCHERAS - MARRANERAS - PORQUERIZAS;NO CONVENCIONAL;ANEXO;8;"Estructura en madera;  cubierta de zinc; eternit o teja de barro; con o sin muros; pisos en tierra; conservación regular o mala.";1
+5;COCHERAS - MARRANERAS - PORQUERIZAS;NO CONVENCIONAL;ANEXO;13;"Estructura en concreto; cubierta de zinc, eternit o teja de barro, muros en bloque o ladrillo, pisos en cemento o baldosa, conservación general buena.";14
+5;COCHERAS - MARRANERAS - PORQUERIZAS;NO CONVENCIONAL;ANEXO;14;Estructura en ladrillo o bloque, cubierta de zinc, eternit o teja de barro, semimuros en bloque  o ladrillo, pisos en cemento o baldosa conservación general buena.;259
+5;COCHERAS - MARRANERAS - PORQUERIZAS;NO CONVENCIONAL;ANEXO;15;"Estructura en ladrillo; cubierta de zinc, eternit, o teja de barro; con muros o sin muros; pisos en tierra; conservación regular a mala.";399
+5;COCHERAS - MARRANERAS - PORQUERIZAS;NO CONVENCIONAL;ANEXO;16;"Estructura en madera; cubierta de zinc, eternit, o teja de barro; con muros o sin muros; pisos en tierra; conservación regular a mala.";72
+5;COCHERAS - MARRANERAS - PORQUERIZAS;NO CONVENCIONAL;ANEXO;31;"Estructura en ladrillo; pisos en cemento; oreador en madera con sistemas de rodamiento; buen estado de conservación.";1
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";4
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";4
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;25;"Tanques de mediana capacidad con altura o profundidad no superior a 5 metros; en buen estado de conservación, estructura en concreto, cuenta con revestimiento en todas sus caras, plantilla en concreto pobre, placa de contrapiso, sistema de ventilación y tapa en concreto.";1
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;26;"Tanques con altura menor a 3 metros o poca profundidad; estructura en ladrillo conservación regular a mala.";1
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;3
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;57;Sin descripción asociada;1
+6;BODEGA CASA BOMBA;CONVENCIONAL;INDUSTRIAL;;;3662
+7;INDUSTRIAS;CONVENCIONAL;INDUSTRIAL;;;379
+8;SILOS;NO CONVENCIONAL;ANEXO;17;Estructura en ferroconcreto.;3
+8;SILOS;NO CONVENCIONAL;ANEXO;18;Estructura metálica.;12
+9;PISCINAS;NO CONVENCIONAL;ANEXO;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";1
+9;PISCINAS;NO CONVENCIONAL;ANEXO;19;"Piscinas olímpicas, con sistemas de purificación e iluminación; enchape en azulejo fino; trampolín a diferentes altura. Se encuentra comúnmente en clubes y coliseos.";20
+9;PISCINAS;NO CONVENCIONAL;ANEXO;20;"Piscinas semi-olímpicas con sistemas de purificación; enchape en azulejo fino;  Se encuentra comunes en  clubes y  centros de recreación.";153
+9;PISCINAS;NO CONVENCIONAL;ANEXO;21;Piscinas de tamaña mediano, enchape en azulejo, sistema  de purificación rudimentario, comunes en fincas de recreo  o centros de recreación;741
+9;PISCINAS;NO CONVENCIONAL;ANEXO;22;Piscinas pequeñas, cubierta en baldosín o cemento.  Comunes en fincas o casas de campo.;204
+9;PISCINAS;NO CONVENCIONAL;ANEXO;35;"Estructura en madera fina; todo tipo de cubiertas; piso en cemento; estado de conservación bueno a regular.";1
+9;PISCINAS;NO CONVENCIONAL;ANEXO;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;2
+9;PISCINAS;NO CONVENCIONAL;ANEXO;50;Altura entre 3 y 9 Mts., longitud 25  a 75 Mts.  Estructura y soportes en concreto o metálica.  Incluye piscina de acceso y sistema de bombeo y purificación.    ;1
+9;PISCINAS;NO CONVENCIONAL;ANEXO;60;Sin descripción asociada;17
+9;PISCINAS;NO CONVENCIONAL;ANEXO;;;3
+10;TANQUES;NO CONVENCIONAL;ANEXO;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";1
+10;TANQUES;NO CONVENCIONAL;ANEXO;23;Tanques que por su capacidad y/o altura requieren estructura en ferroconcreto con revestimiento, encontrándose en buen estado de conservación;48
+10;TANQUES;NO CONVENCIONAL;ANEXO;24;Compuesta de varios elementos estructurales en concreto, sobre la cual se soportan los tanques elevados que generalmente son utilizados en predios de tendencia rural y en ocasiones urbana. Altura promedio de 4 a 5 metros (Incluye el tanque en concreto y acometidas). Capacidad de almacenamiento máxima de 3000 litros (3 m3). Vida útil: 100 años.;112
+10;TANQUES;NO CONVENCIONAL;ANEXO;25;"Tanques de mediana capacidad con altura o profundidad no superior a 5 metros; en buen estado de conservación, estructura en concreto, cuenta con revestimiento en todas sus caras, plantilla en concreto pobre, placa de contrapiso, sistema de ventilación y tapa en concreto.";341
+10;TANQUES;NO CONVENCIONAL;ANEXO;26;"Tanques con altura menor a 3 metros o poca profundidad; estructura en ladrillo conservación regular a mala.";166
+10;TANQUES;NO CONVENCIONAL;ANEXO;32;"Estructura en madera pisos en tierra oreador con especificaciones mínimas; estado de conservación regular a mala.  Dentro de este tipo se consideran las condiciones de los tipos anteriores, que se encuentran en regular a mal estado de conservación.";1
+10;TANQUES;NO CONVENCIONAL;ANEXO;;;4
+11;BENEFICIADEROS;NO CONVENCIONAL;ANEXO;27;"Estructura en ladrillo o bloque; cubierta en zinc, teja de barro eternit rústico; pisos en cemento, con tanques lavadores y serpentina o canal de carreteo y silo o patio quindiano incorporado.  Estado de conservación buena a regular";60
+11;BENEFICIADEROS;NO CONVENCIONAL;ANEXO;28;"Estructura  en madera; muros en ladrillos o bloque; cubierta en zinc, teja de barro o eternit; existencia de tanques, y/o silos; pisos en cemento.  Estado de conservación bueno a regular";484
+11;BENEFICIADEROS;NO CONVENCIONAL;ANEXO;29;"Beneficiaderos construidos en materiales económicos (bareque, tapia) pisos en tierra conservación regular a mala; se encuentran en este tipo los elementos apenas necesarios:  tanques, despulpaderos, canales, etc., en condiciones rudimentarias, comunes en fincas minifundistas.";1439
+11;BENEFICIADEROS;NO CONVENCIONAL;ANEXO;32;"Estructura en madera pisos en tierra oreador con especificaciones mínimas; estado de conservación regular a mala.  Dentro de este tipo se consideran las condiciones de los tipos anteriores, que se encuentran en regular a mal estado de conservación.";2
+11;BENEFICIADEROS;NO CONVENCIONAL;ANEXO;34;"Estructura metálica; todo tipo de cubiertas; piso en cemento; estado de conservación bueno a regular.";1
+11;BENEFICIADEROS;NO CONVENCIONAL;ANEXO;;;4
+12;COLEGIO Y UNIVERSIDADES;CONVENCIONAL;COMERCIAL;;;2108
+13;BIBLIOTECA;CONVENCIONAL;COMERCIAL;;;31
+14;GARAJES CUBIERTOS;CONVENCIONAL;RESIDENCIAL;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";3
+14;GARAJES CUBIERTOS;CONVENCIONAL;RESIDENCIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";1
+14;GARAJES CUBIERTOS;CONVENCIONAL;RESIDENCIAL;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";2
+14;GARAJES CUBIERTOS;CONVENCIONAL;RESIDENCIAL;;;607
+16;BODEGAS COMERCIALES - GRANDES ALMACENES;CONVENCIONAL;COMERCIAL;;;265
+18;SECADEROS;NO CONVENCIONAL;ANEXO;29;"Beneficiaderos construidos en materiales económicos (bareque, tapia) pisos en tierra conservación regular a mala; se encuentran en este tipo los elementos apenas necesarios:  tanques, despulpaderos, canales, etc., en condiciones rudimentarias, comunes en fincas minifundistas.";3
+18;SECADEROS;NO CONVENCIONAL;ANEXO;30;"Estructura metálica y cerca de madera o metálica muros medianos o totales en ladrillo marquesina de vidrio; pisos en cemento; estado conservación buena.";18
+18;SECADEROS;NO CONVENCIONAL;ANEXO;31;"Estructura en ladrillo; pisos en cemento; oreador en madera con sistemas de rodamiento; buen estado de conservación.";427
+18;SECADEROS;NO CONVENCIONAL;ANEXO;32;"Estructura en madera pisos en tierra oreador con especificaciones mínimas; estado de conservación regular a mala.  Dentro de este tipo se consideran las condiciones de los tipos anteriores, que se encuentran en regular a mal estado de conservación.";1165
+19;CLINICAS - HOSPITALES - CENTROS MEDICOS;CONVENCIONAL;COMERCIAL;;;145
+20;POZOS;NO CONVENCIONAL;ANEXO;45;Anillados parcialmente.;19
+20;POZOS;NO CONVENCIONAL;ANEXO;46;Sin anillar.;7
+20;POZOS;NO CONVENCIONAL;ANEXO;;;2
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";1
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";4
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;9;"Estructura metálica;  cubierta de zinc, eternit o teja de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena.";1
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;10;"Estructura en bloque o ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena o regular.";1
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;33;"Estructura en bloque o ladrillo cubierta en zinc, teja de barro o paja; estado de conservación general bueno.";168
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;34;"Estructura metálica; todo tipo de cubiertas; piso en cemento; estado de conservación bueno a regular.";911
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;35;"Estructura en madera fina; todo tipo de cubiertas; piso en cemento; estado de conservación bueno a regular.";1860
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;36;"Estructura en madera común; cubierta en zinc; pata o teja de barro piso en tierra ; estado de conservación  regular a mala.";456
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;6
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;50;Altura entre 3 y 9 Mts., longitud 25  a 75 Mts.  Estructura y soportes en concreto o metálica.  Incluye piscina de acceso y sistema de bombeo y purificación.    ;2
+21;KIOSCOS;NO CONVENCIONAL;ANEXO;;;19
+23;ALBERCAS - BANADERAS;NO CONVENCIONAL;ANEXO;37;"Estructura en concreto; cubierta en zinc, eternit o teja de barro; piso en cemento; conservación buena a regular.";1
+23;ALBERCAS - BANADERAS;NO CONVENCIONAL;ANEXO;38;"Estructura en ladrillo; cubierta en zinc, eternit o teja de barro; piso en cemento; conservación buena a regular.";29
+23;ALBERCAS - BANADERAS;NO CONVENCIONAL;ANEXO;39;"Estructura en madera; cubierta en zinc, eternit o teja de barro; piso en cemento; conservación  regular a mala.  Se incluyen este tipo en este tipo las condiciones dadas a los anteriores en mal estado de conservación.";31
+25;HOTELES EN PH;CONVENCIONAL;COMERCIAL;;;42
+26;CORRALES;NO CONVENCIONAL;ANEXO;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";2
+26;CORRALES;NO CONVENCIONAL;ANEXO;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";2
+26;CORRALES;NO CONVENCIONAL;ANEXO;9;"Estructura metálica;  cubierta de zinc, eternit o teja de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena.";1
+26;CORRALES;NO CONVENCIONAL;ANEXO;10;"Estructura en bloque o ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos de cemento, conservación en genera buena o regular.";1
+26;CORRALES;NO CONVENCIONAL;ANEXO;11;"Estructura en ladrillo; cubierta de zinc, eternit o tejas de barro muros en bloque o ladrillo, pisos en tierra, conservación regular o mala.";1
+26;CORRALES;NO CONVENCIONAL;ANEXO;20;"Piscinas semi-olímpicas con sistemas de purificación; enchape en azulejo fino;  Se encuentra comunes en  clubes y  centros de recreación.";2
+26;CORRALES;NO CONVENCIONAL;ANEXO;35;"Estructura en madera fina; todo tipo de cubiertas; piso en cemento; estado de conservación bueno a regular.";1
+26;CORRALES;NO CONVENCIONAL;ANEXO;36;"Estructura en madera común; cubierta en zinc; pata o teja de barro piso en tierra ; estado de conservación  regular a mala.";1
+26;CORRALES;NO CONVENCIONAL;ANEXO;40;Estructura metálica o de madera aserrada, formado por cuatro varales, pisos en cemento y conservación buena.;47
+26;CORRALES;NO CONVENCIONAL;ANEXO;41;Estructura en madera aserrada, formado por tres varales, pisos en cemento y conservación general buena.;360
+26;CORRALES;NO CONVENCIONAL;ANEXO;42;Estructura en madera aserrada, formado por tres varales, pisos en tierra  y conservación general regular a  mala;1617
+26;CORRALES;NO CONVENCIONAL;ANEXO;43;Estructura en madera burda, pisos en tierra y conservación general regular a mala.;719
+26;CORRALES;NO CONVENCIONAL;ANEXO;50;Altura entre 3 y 9 Mts., longitud 25  a 75 Mts.  Estructura y soportes en concreto o metálica.  Incluye piscina de acceso y sistema de bombeo y purificación.    ;1
+26;CORRALES;NO CONVENCIONAL;ANEXO;60;Sin descripción asociada;3
+26;CORRALES;NO CONVENCIONAL;ANEXO;;;10
+27;CASA ELBAS;CONVENCIONAL;RESIDENCIAL;;;2277
+28;COMERCIO;CONVENCIONAL;COMERCIAL;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";1
+28;COMERCIO;CONVENCIONAL;COMERCIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";9
+28;COMERCIO;CONVENCIONAL;COMERCIAL;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";9
+28;COMERCIO;CONVENCIONAL;COMERCIAL;14;Estructura en ladrillo o bloque, cubierta de zinc, eternit o teja de barro, semimuros en bloque  o ladrillo, pisos en cemento o baldosa conservación general buena.;1
+28;COMERCIO;CONVENCIONAL;COMERCIAL;15;"Estructura en ladrillo; cubierta de zinc, eternit, o teja de barro; con muros o sin muros; pisos en tierra; conservación regular a mala.";1
+28;COMERCIO;CONVENCIONAL;COMERCIAL;33;"Estructura en bloque o ladrillo cubierta en zinc, teja de barro o paja; estado de conservación general bueno.";1
+28;COMERCIO;CONVENCIONAL;COMERCIAL;;;11641
+29;IGLESIA;CONVENCIONAL;COMERCIAL;;;549
+31;HOTELES;CONVENCIONAL;COMERCIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";1
+31;HOTELES;CONVENCIONAL;COMERCIAL;;;314
+33;CLUBES - CASINOS;CONVENCIONAL;COMERCIAL;33;"Estructura en bloque o ladrillo cubierta en zinc, teja de barro o paja; estado de conservación general bueno.";1
+33;CLUBES - CASINOS;CONVENCIONAL;COMERCIAL;;;95
+34;OFICINAS - CONSULTORIOS;CONVENCIONAL;COMERCIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";1
+34;OFICINAS - CONSULTORIOS;CONVENCIONAL;COMERCIAL;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";1
+34;OFICINAS - CONSULTORIOS;CONVENCIONAL;COMERCIAL;26;"Tanques con altura menor a 3 metros o poca profundidad; estructura en ladrillo conservación regular a mala.";1
+34;OFICINAS - CONSULTORIOS;CONVENCIONAL;COMERCIAL;;;1938
+35;APARTAMENTOS MAS DE 4 PISOS;CONVENCIONAL;RESIDENCIAL;;;720
+36;RESTAURANTES;CONVENCIONAL;COMERCIAL;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";1
+36;RESTAURANTES;CONVENCIONAL;COMERCIAL;;;595
+37;PENSIONES Y RESIDENCIAS;CONVENCIONAL;COMERCIAL;;;282
+38;PUESTOS DE SALUD;CONVENCIONAL;COMERCIAL;;;206
+39;PARQUEADEROS;CONVENCIONAL;COMERCIAL;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";1
+39;PARQUEADEROS;CONVENCIONAL;COMERCIAL;;;178
+40;BARRACAS;CONVENCIONAL;RESIDENCIAL;;;65
+41;TEATRO - CINEMAS;CONVENCIONAL;COMERCIAL;;;30
+42;AULAS DE CLASES;CONVENCIONAL;COMERCIAL;;;984
+43;COLISEOS;CONVENCIONAL;COMERCIAL;;;45
+44;CASAS DE CULTO;CONVENCIONAL;COMERCIAL;;;488
+45;TALLERES;CONVENCIONAL;INDUSTRIAL;;;533
+46;JARDIN INFANTIL EN CASA;CONVENCIONAL;COMERCIAL;;;129
+47;TORRES DE ENFRIAMIENTO;NO CONVENCIONAL;ANEXO;;;1
+49;ESTACION DE BOMBEO;NO CONVENCIONAL;COMERCIAL;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";1
+49;ESTACION DE BOMBEO;NO CONVENCIONAL;COMERCIAL;;;12
+50;ESTADIOS - PLAZA DE TOROS;NO CONVENCIONAL;COMERCIAL;;;14
+51;CARCELES;CONVENCIONAL;COMERCIAL;;;21
+52;PARQUE CEMENTERIOS;CONVENCIONAL;COMERCIAL;;;6
+53;VIVIENDA COLONIAL;CONVENCIONAL;RESIDENCIAL;;;3
+54;COMERCIO COLONIAL;CONVENCIONAL;COMERCIAL;;;2
+55;OFICINAS - CONSULTORIOS COLONIALES;CONVENCIONAL;COMERCIAL;;;4
+56;APARTAMENTOS EN EDIFICIO DE 4 Y 5 PISOS (CARTAGENA);CONVENCIONAL;RESIDENCIAL;;;3854
+58;CENTROS COMERCIALES;CONVENCIONAL;COMERCIAL;;;2
+60;CANCHAS DE TENIS;NO CONVENCIONAL;ANEXO;47;En polvo de ladrillo;23
+60;CANCHAS DE TENIS;NO CONVENCIONAL;ANEXO;48;Cemento y/o asfalto;39
+60;CANCHAS DE TENIS;NO CONVENCIONAL;ANEXO;;;3
+62;TOBOGANES;NO CONVENCIONAL;ANEXO;49;Altura entre 9 y 15 Mts., longitud de canal entre 75 y 120 Mts.  Fibra de vidrio.  Estructura de concreto o metálica.  Incluye piscina de llegada. Sistema de bombeo, purificación.;1
+62;TOBOGANES;NO CONVENCIONAL;ANEXO;50;Altura entre 3 y 9 Mts., longitud 25  a 75 Mts.  Estructura y soportes en concreto o metálica.  Incluye piscina de acceso y sistema de bombeo y purificación.    ;4
+63;VIVIENDA RECREACIONAL;CONVENCIONAL;RESIDENCIAL;21;Piscinas de tamaña mediano, enchape en azulejo, sistema  de purificación rudimentario, comunes en fincas de recreo  o centros de recreación;1
+63;VIVIENDA RECREACIONAL;CONVENCIONAL;RESIDENCIAL;;;1811
+70;VIVIENDA HASTA 3 PISOS EN PH;CONVENCIONAL;RESIDENCIAL;;;7652
+71;APARTAMENTOS 4 Y MÁS PISOS EN PH;CONVENCIONAL;RESIDENCIAL;;;7994
+72;VIVIENDA RECREACIONAL EN PH;CONVENCIONAL;RESIDENCIAL;;;120
+73;BODEGAS CASA BOMBA EN PH;CONVENCIONAL;INDUSTRIAL;;;981
+74;BODEGAS COMERCIALES EN PH;CONVENCIONAL;COMERCIAL;;;59
+75;COMERCIO EN PH;CONVENCIONAL;COMERCIAL;;;2338
+76;CENTROS COMERCIALES EN PH;CONVENCIONAL;COMERCIAL;;;146
+77;OFICINAS CONSULTORIOS EN PH;CONVENCIONAL;COMERCIAL;;;872
+78;PARQUEADEROS EN PH;CONVENCIONAL;COMERCIAL;;;3460
+79;GARAJES EN PH;CONVENCIONAL;RESIDENCIAL;;;1006
+80;INDUSTRIAS EN PH;CONVENCIONAL;INDUSTRIAL;;;7
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;2;"Estructura metálica; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena a regular.";2
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;3;"Estructura en madera fina; cubierta de zinc, eternit o teja de barro pisos de cemento; conservación general buena o regular.    ";3
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;4;"Estructura en madera común; cubierta de zinc, eternit o teja de barro; pisos en tierra; conservación regular o mala";3
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;53;"Estructura metálica; cubierta cristalita o vidrio; piso en baldosa fina.";143
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;54;"Estructura metálica; cubierta cristalita o vidrio; piso en baldosa común";3969
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;55;"Estructura metálica; cubierta de eternit y piso en cemento";3519
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;56;"Estructura madera; cubierta de zinc o eternit; piso en baldosín o cemento";156
+82;MARQUESINAS - PATIOS CUBIERTOS;NO CONVENCIONAL;ANEXO;;;2
+85;CARRETERA;NO CONVENCIONAL;ANEXO;70;Zona dura - adoquín enmarcado en concreto sobre cama de arena con base flexible de zahorra natural, de 20 cm de espesor, con extendido y compactado al 100% del Proctor Modificado. Incluye costo de la base.;2
+86;TEATRO - CINEMAS EN PH;CONVENCIONAL;COMERCIAL;;;2
+88;RESTAURANTES EN PH;CONVENCIONAL;COMERCIAL;;;8
+89;HOTEL COLONIAL;CONVENCIONAL;COMERCIAL;;;1
+99;"CIMIENTOS, ESTRUCTURA, MUROS Y PLACA BASE 
+Centros Comerciales En Ph (Lorenzo-Pasto)";NO CONVENCIONAL;COMERCIAL;66;Cimientos y estructura soportes verticales(columnas) y horizontales(vigas) destinados a sostener la totalidad o parte de una futura construcción o edificación acompañados de muros y placas base.;38
+99;"CIMIENTOS, ESTRUCTURA, MUROS Y PLACA BASE 
+Centros Comerciales En Ph (Lorenzo-Pasto)";NO CONVENCIONAL;COMERCIAL;67;Cimentación y estructura con soportes verticales(columnas) y horizontales(vigas) destinados a sostener la totalidad o parte de una futura construcción o edificación acompañados de muros o placas base.;40
+99;"CIMIENTOS, ESTRUCTURA, MUROS Y PLACA BASE 
+Centros Comerciales En Ph (Lorenzo-Pasto)";NO CONVENCIONAL;COMERCIAL;68;Cimentación sin estructura destinada a sostener la totalidad o parte de una futura construcción o edificación acompañados de muros o placas base.;23
+99;"CIMIENTOS, ESTRUCTURA, MUROS Y PLACA BASE 
+Centros Comerciales En Ph (Lorenzo-Pasto)";NO CONVENCIONAL;COMERCIAL;69;Cimentación sin estructura destinada a sostener la totalidad o parte de una futura construcción o edificación.;25
+99;"CIMIENTOS, ESTRUCTURA, MUROS Y PLACA BASE 
+Centros Comerciales En Ph (Lorenzo-Pasto)";NO CONVENCIONAL;COMERCIAL;;;158
