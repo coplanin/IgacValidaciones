@@ -1,6 +1,6 @@
 
 select novedad_numero_predial,count(*)
-from colsmart_prod_insumos.z_f7_foliosmatricula f
+from colsmart_prod_insumos.z_f8_foliosmatricula f
 group by novedad_numero_predial;
 
 
@@ -13,7 +13,9 @@ create table colsmart_prod_insumos.z_f_foliosmatricula_derivados  as
 select *
 from colsmart_prod_insumos.z_f_foliosmatricula_3
 where novedad_numero_predial 
-in ('Cambio_Numero_Predial_NPH_a_Bien_Uso_Publico',
+in (
+'Cambio_Numero_Predial_NPH_a_Condominio',
+'Cambio_Numero_Predial_NPH_a_Bien_Uso_Publico',
 'Predio_Nuevo',
 'Cambio_Numero_Predial_Condominio_a_NPH',
 'Cambio_Numero_Predial_NPH_a_PH',
@@ -125,7 +127,7 @@ order by folio_derivados desc;
 	)
 	select 
 	--next_rowid('colsmart_test5_owner', 'ilc_predio') objectid,
-	'L7_'||f.id id_operacion,
+	'L8_'||f.id id_operacion,
 	coalesce(SPLIT_PART(f.folio_derivados,'-',1),SPLIT_PART(f.folio_matriz,'-',1)) codigo_orip,
 	SPLIT_PART(f.folio_matriz,'-',2) matricula_inmobiliaria_antigua,
 	SPLIT_PART(f.folio_derivados,'-',2) matricula_inmobiliaria,
@@ -626,7 +628,7 @@ order by folio_derivados desc;
 		null    fecha_visita,
 		''::text as nombre_quien_atendio,
 		''::text as num_doc_quien_atendio,
-		'L7_'||pn.id::text as observaciones,
+		'L8_'||pn.id::text as observaciones,
 		''::text as tipo_doc_quien_atendio_raw,	
 		'Sin_Visita'::text as resultado_visita_raw,	
 		pn.novedad_numero_predial,
@@ -813,10 +815,10 @@ order by folio_derivados desc;
 	
 	select count(*)
 	from 	colsmart_preprod_migra.ilc_datosadicionaleslevantamientocatastral d
-	where observaciones like ('L7_%')
+	where observaciones like ('L8_%')
 	
 	select count(*)
-from colsmart_prod_insumos.z_f7_foliosmatricula;
+from colsmart_prod_insumos.z_f8_foliosmatricula;
 
 	
 	

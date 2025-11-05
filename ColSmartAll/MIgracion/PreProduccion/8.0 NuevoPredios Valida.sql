@@ -13,7 +13,7 @@ folio_derivados,
 coeficiente,
 "área coefieciente",
 count(*) 
-from colsmart_prod_insumos.z_f7_foliosmatricula f
+from colsmart_prod_insumos.z_f8_foliosmatricula f
 where  COALESCE(novedadfmi_tipo,'')||COALESCE(novedad_numero_predial,'')!=''
 group by id,
 folio_matriz,novedadfmi_tipo,npnmatriz, 
