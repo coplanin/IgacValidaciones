@@ -1,4 +1,4 @@
-- 1) Asegurar PostGIS
+-- 1) Asegurar PostGIS
 CREATE EXTENSION IF NOT EXISTS postgis;
 
 -- 2) Agregar PK (IDENTITY moderno en PG 17)
