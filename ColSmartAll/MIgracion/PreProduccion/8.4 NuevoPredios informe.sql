@@ -9,7 +9,7 @@ drop table colsmart_prod_insumos.z_f_foliosmatricula_reporte;
 create table colsmart_prod_insumos.z_f_foliosmatricula_reporte  as
 select pr.objectid, pr.id_operacion, f.*
 from colsmart_prod_insumos.z_f11_foliosmatricula f
-left join colsmart_preprod_migra.ilc_predio pr
+left join colsmart_preprod_migra.ilc_predio pr	
 on coalesce(f.folio_derivados,f.folio_matriz)=pr.codigo_orip||'-'||pr.matricula_inmobiliaria
 
 

@@ -1,2 +1,0 @@
-<?xml version="1.0" encoding="UTF-8"?>
-<metadata xml:lang="es"><Esri><CreaDate>20251107</CreaDate><CreaTime>13574600</CreaTime><ArcGISFormat>1.0</ArcGISFormat><SyncOnce>TRUE</SyncOnce><DataProperties><lineage><Process ToolSource="c:\program files\arcgis\pro\Resources\ArcToolbox\toolboxes\Conversion Tools.tbx\RasterToPolygon" Date="20251107" Time="135746">RasterToPolygon "Sentinel-2 10m Land Use/Land Cover Time Series" D:\Descargas\Marcas_Unidad\Landcover2024_.shp SIMPLIFY ClassName MULTIPLE_OUTER_PART #</Process></lineage></DataProperties></Esri></metadata>
