@@ -308,19 +308,41 @@ group by novedad_numero_predial;
 	  novedad_numero_tipo
 	FROM src;
 	
+	drop table colsmart_prod_insumos.z_inf1_reporte;
+	
 	create table colsmart_prod_insumos.z_inf1_reporte as 
-	select pr.id_operacion_predio,f.*
+	select pr.id_operacion_predio,
+	p.numero_predial_nacional numero_predial_nacional_provisional,
+	f.*
 	FROM colsmart_prod_insumos.z_i_infor_lote1 f
 	JOIN colsmart_preprod_migra.ilc_datosadicionaleslevantamientocatastral  pr
 	ON 'Inf1_'||f.id::text = pr.observaciones 
+	JOIN colsmart_preprod_migra.ilc_predio  p
+	ON  pr.predio_guid=p.globalid
 	where  pr.observaciones like 'Inf1_%'
 	
 	
 	select *
-	from  colsmart_prod_insumos.z_inf1_reporte ;
+	from  colsmart_prod_insumos.z_inf1_carga ;
+	
+	create table colsmart_prod_insumos.z_inf1_carga as 
+	select pr.id_operacion_predio,
+	p.numero_predial_nacional,
+	p.condicion_predio,
+	p.tipo	
+	FROM colsmart_prod_insumos.z_i_infor_lote1 f
+	JOIN colsmart_preprod_migra.ilc_datosadicionaleslevantamientocatastral  pr
+	ON 'Inf1_'||f.id::text = pr.observaciones 
+	JOIN colsmart_preprod_migra.ilc_predio  p
+	ON  pr.predio_guid=p.globalid
+	where  pr.observaciones like 'Inf1_%'
 	
 	select *
 	from colsmart_preprod_migra.estructura
 	where table_name='ilc_predio'
 	and column_name='destinacion_economica'
 	order by name_value;
+	
+	
+	
+	

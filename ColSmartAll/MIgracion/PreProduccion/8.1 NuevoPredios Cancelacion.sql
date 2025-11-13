@@ -151,7 +151,7 @@ from  colsmart_prod_insumos.z_f_foliosmatricula_cancelacion_exists
 	)
 	select 
 	--next_rowid('colsmart_test5_owner', 'ilc_predio') objectid,
-	'L8_'||f.id id_operacion,
+	'L11_'||f.id id_operacion,
 	coalesce(SPLIT_PART(f.folio_derivados,'-',1),SPLIT_PART(f.folio_matriz,'-',1)) codigo_orip,
 	SPLIT_PART(f.folio_matriz,'-',2) matricula_inmobiliaria_antigua,
 	SPLIT_PART(f.folio_derivados,'-',2) matricula_inmobiliaria,
@@ -623,7 +623,7 @@ from  colsmart_prod_insumos.z_f_foliosmatricula_cancelacion_exists
 		null    fecha_visita,
 		''::text as nombre_quien_atendio,
 		''::text as num_doc_quien_atendio,
-		'L8_'||f.id::text as observaciones,
+		'L11_'||f.id::text as observaciones,
 		''::text as tipo_doc_quien_atendio_raw,	
 		'Sin_Visita'::text as resultado_visita_raw,	
 		---Tabla ILC_NovedadFMI
@@ -815,7 +815,7 @@ from  colsmart_prod_insumos.z_f_foliosmatricula_cancelacion_exists
 	
 	select *
 	from colsmart_preprod_migra.ilc_datosadicionaleslevantamientocatastral
-	where observaciones like 'L8_%';
+	where observaciones like 'L11_%';
 	
 
 	

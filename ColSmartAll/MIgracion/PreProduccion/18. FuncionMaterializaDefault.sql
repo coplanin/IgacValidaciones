@@ -300,4 +300,76 @@ BEGIN
 END;
 $$;
 
+-- === Parámetros ===
+DO $$
+DECLARE
+  -- 👈 Ajusta esto a tu esquema real en Postgres
+  p_schema    text := 'colsmart_prod_reader';
+  p_out_table text := 't_resumen_conteos';
+
+  tables text[] := ARRAY[
+    't_asignaciones',
+    't_cr_datosphcondominio',
+    't_cr_fuenteespacial',
+    't_cr_terreno',
+    't_cr_unidadconstruccion',
+    't_extdireccion',
+    't_ilc_caracteristicasunidadconstruccion',
+    't_ilc_datosadicionaleslevantamientocatastral',
+    't_ilc_derecho',
+    't_ilc_estructuraavaluo',
+    't_ilc_fuenteadministrativa',
+    't_ilc_interesado',
+    't_ilc_marcas',
+    't_ilc_predio',
+    't_ilc_predio_informalidad',
+    't_ilc_tramitesderechosterritoriales',
+    't_cr_predio_copropiedad'
+  ];
+
+  t         text;
+  v_exists  boolean;
+  v_count   bigint;
+BEGIN
+  -- Crear esquema si no existe
+  
+  -- Crear tabla de salida si no existe y vaciarla (equivalente a overwrite)
+  EXECUTE format(
+    'CREATE TABLE IF NOT EXISTS %I.%I (
+       tabla  text,
+       rows   bigint,
+       status text
+     )', p_schema, p_out_table
+  );
+  EXECUTE format('TRUNCATE %I.%I', p_schema, p_out_table);
+
+  -- Recorrer tablas y llenar el resumen
+  FOREACH t IN ARRAY tables LOOP
+    SELECT EXISTS (
+      SELECT 1
+      FROM information_schema.tables
+      WHERE table_schema = p_schema
+        AND table_name   = t
+    ) INTO v_exists;
+
+    IF v_exists THEN
+      EXECUTE format('SELECT count(*) FROM %I.%I', p_schema, t) INTO v_count;
+      EXECUTE format('INSERT INTO %I.%I (tabla, rows, status) VALUES ($1,$2,$3)',
+                     p_schema, p_out_table)
+      USING t, v_count, 'ok';
+    ELSE
+      EXECUTE format('INSERT INTO %I.%I (tabla, rows, status) VALUES ($1, NULL, $2)',
+                     p_schema, p_out_table)
+      USING t, 'no_existe';
+    END IF;
+  END LOOP;
+END
+$$;
+
+-- Consulta de verificación (opcional)
+SELECT * 
+FROM colsmart_prod_reader.t_resumen_conteos
+ORDER BY tabla;
+
+
 
